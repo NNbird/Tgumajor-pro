@@ -67,10 +67,10 @@ export default function Home() {
           <div className="absolute bottom-0 left-0 p-8 z-10 w-full">
             <div className="flex items-center gap-3 mb-4">
                 <div className="bg-red-600 text-white px-3 py-1 text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-[0_0_15px_rgba(220,38,38,0.6)] animate-pulse">
-                    <span className="w-2 h-2 bg-white rounded-full"></span> Live Event
+                    <span className="w-2 h-2 bg-white rounded-full"></span> Coming Event
                 </div>
                 <div className="text-yellow-500 text-xs font-mono border border-yellow-500/30 px-2 py-1 rounded bg-black/50 backdrop-blur">
-                    LAN FINALS
+                    WAN FINALS
                 </div>
             </div>
             

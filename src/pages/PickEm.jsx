@@ -7,6 +7,7 @@ import {
   BarChart3, Maximize2, Search 
 } from 'lucide-react';
 
+
 // ==========================================
 // 1. 排行榜 & 弹窗组件
 // ==========================================
@@ -788,24 +789,35 @@ const testLeaderboard = async () => {
                 if (data.userPicks) {
                     if (data.event.type === 'SWISS') {
                          const loadedPicks = {};
-                         const { pick30, pick03, pickAdvance } = data.userPicks;
+                         // ==================== 修改开始 ====================
+                         // 使用 parseJsonArray 安全解析数据
+                         const pick30 = parseJsonArray(data.userPicks.pick30);
+                         const pick03 = parseJsonArray(data.userPicks.pick03);
+                         const pickAdvance = parseJsonArray(data.userPicks.pickAdvance);
+                         // ==================== 修改结束 ====================
+
                          const findTeam = (id) => data.teams?.find(t => String(t.id) === String(id));
                          
-                         if (Array.isArray(pick30)) pick30.forEach((tid, i) => { 
+                         // 下面的逻辑不用变，现在 pick30 已经是数组了
+                         pick30.forEach((tid, i) => { 
                              const t = findTeam(tid); 
                              if(t) loadedPicks[`30_${i+1}`] = t; 
                          });
-                         if (Array.isArray(pick03)) pick03.forEach((tid, i) => { 
+                         pick03.forEach((tid, i) => { 
                              const t = findTeam(tid); 
                              if(t) loadedPicks[`03_${i+1}`] = t; 
                          });
-                         if (Array.isArray(pickAdvance)) pickAdvance.forEach((tid, i) => { 
+                         pickAdvance.forEach((tid, i) => { 
                              const t = findTeam(tid); 
                              if(t) loadedPicks[`adv_${i+1}`] = t; 
                          });
                          setUserPicks(loadedPicks);
                     } else {
-                         setUserPicks({ bracketPicks: data.userPicks.bracketPicks || {} });
+                        // 淘汰赛同样建议安全解析（虽然 bracketPicks 通常是对象，但为了保险）
+                        const bp = typeof data.userPicks.bracketPicks === 'string' 
+                            ? JSON.parse(data.userPicks.bracketPicks) 
+                            : data.userPicks.bracketPicks;
+                        setUserPicks({ bracketPicks: bp || {} });
                     }
                 } else { 
                     setUserPicks({}); 
@@ -905,20 +917,44 @@ const { tasks, coinLevel } = useMemo(() => {
         if (evt.type === 'SWISS') {
             // 计算已填写的总数
             const pick30 = pick?.pick30 ? parseJsonArray(pick.pick30) : [];
-             const pick03 = pick?.pick03 ? parseJsonArray(pick.pick03) : [];
-             const pickAdvance = pick?.pickAdvance ? parseJsonArray(pick.pickAdvance) : [];
-             let pickedCount = pick30.length + pick03.length + pickAdvance.length;
+            const pick03 = pick?.pick03 ? parseJsonArray(pick.pick03) : [];
+            const pickAdvance = pick?.pickAdvance ? parseJsonArray(pick.pickAdvance) : [];
+            let pickedCount = pick30.length + pick03.length + pickAdvance.length;
              
-             // 临时沿用数据库值，你也可以像下面一样写实时计算
-             let swissCorrect = pick?.correctCount || 0; 
+            // 基础值：取数据库存的 (防止 api 还没返回 teams 时显示 0)
+            let swissCorrect = pick?.correctCount || 0; 
 
-             const items = [
+            // 🟢 [核心修改]：直接使用 evt.teams (来自 allStagesData)，不再依赖 currentEventData
+            // 这样无论你切到哪个 Tab，这里都能拿到该阶段对应的战队数据
+            if (evt.teams && evt.teams.length > 0) {
+                let liveSwissCorrect = 0;
+                
+                const checkTeamStatus = (tid, type) => {
+                    // 使用当前循环到的这个阶段(evt)里的 teams
+                    const t = evt.teams.find(team => String(team.id) === String(tid));
+                    if (!t) return false;
+                    
+                    if (type === '3-0') return t.wins === 3 && t.losses === 0;
+                    if (type === '0-3') return t.wins === 0 && t.losses === 3;
+                    if (type === 'adv') return t.status === 'ADVANCED';
+                    return false;
+                };
+
+                pick30.forEach(id => { if(checkTeamStatus(id, '3-0')) liveSwissCorrect++; });
+                pick03.forEach(id => { if(checkTeamStatus(id, '0-3')) liveSwissCorrect++; });
+                pickAdvance.forEach(id => { if(checkTeamStatus(id, 'adv')) liveSwissCorrect++; });
+
+                // 取最大值
+                swissCorrect = Math.max(swissCorrect, liveSwissCorrect);
+            }
+
+            const items = [
                  { desc: '在本阶段做出全部10次预测', completed: pickedCount === 10 },
                  { desc: '做出5次正确的竞猜预测', completed: swissCorrect >= 5 }
-             ];
-             generatedTasks.push({ title: `${evt.stageName} (瑞士轮)`, items });
-             items.forEach(i => { if(i.completed) totalCompleted++; });
-             totalPossible += 2;
+            ];
+            generatedTasks.push({ title: `${evt.stageName} (瑞士轮)`, items });
+            items.forEach(i => { if(i.completed) totalCompleted++; });
+            totalPossible += 2;
         } else if (evt.type === 'SINGLE_ELIM') {
             // 淘汰赛阶段 - 修复任务逻辑
             const bracketPicks = pick?.bracketPicks || {};
@@ -1190,18 +1226,7 @@ const { tasks, coinLevel } = useMemo(() => {
         );
     }
     
-    // 检查是否有数据
-    if (allStagesData.length === 0) {
-        return (
-            <div className="text-center pt-20 text-zinc-500 flex flex-col items-center gap-4">
-                <Trophy size={64} className="opacity-30" />
-                <div>
-                    <h3 className="text-xl font-bold text-zinc-400">暂无赛事数据</h3>
-                    <p className="text-sm text-zinc-600 mt-2">请稍后再试或联系管理员</p>
-                </div>
-            </div>
-        );
-    }
+    
     
 
 
@@ -1305,18 +1330,42 @@ const { tasks, coinLevel } = useMemo(() => {
                     {/* --- Main Content (3栏布局) --- */}
                     <div className="flex-1 flex overflow-hidden relative">
                         
-                        {/* 1. 左侧：任务栏 (20%) */}
-                        <div className="hidden lg:flex shrink-0">
-                            <LeftSidebar 
-                                coinLevel={coinLevel} 
-                                tasks={tasks} 
-                                leaderboard={leaderboard} 
-                                onExpandLeaderboard={() => setShowLeaderboardFull(true)}
-                                onShowUserDetail={setDetailUser}
-                            />
-                        </div>
+                        {/* 1. 左侧：任务栏 (20%) - 仅在有数据时显示 */}
+                        {allStagesData.length > 0 && (
+                            <div className="hidden lg:flex shrink-0">
+                                <LeftSidebar 
+                                    coinLevel={coinLevel} 
+                                    tasks={tasks} 
+                                    leaderboard={leaderboard} 
+                                    onExpandLeaderboard={() => setShowLeaderboardFull(true)}
+                                    onShowUserDetail={setDetailUser}
+                                />
+                            </div>
+                        )}
 
-                        {isHidden ? (
+                        {/* 核心逻辑分支 */}
+                        {allStagesData.length === 0 ? (
+                            // ✅ 分支 A: 暂无数据 (显示提示 + 返回按钮)
+                            <div className="flex-1 flex flex-col items-center justify-center gap-8 bg-zinc-950/50 animate-in fade-in">
+                                <div className="text-center flex flex-col items-center gap-4">
+                                    <div className="w-24 h-24 bg-zinc-900 rounded-full flex items-center justify-center border border-zinc-800">
+                                        <Trophy size={48} className="opacity-20 text-zinc-500" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-bold text-zinc-400">当前赛事暂无竞猜阶段</h3>
+                                        <p className="text-sm text-zinc-600 mt-2">该赛事可能尚未配置，或已被隐藏</p>
+                                    </div>
+                                </div>
+                                
+                                <button 
+                                    onClick={() => setIsTourDropdownOpen(true)}
+                                    className="flex items-center gap-2 px-8 py-3 bg-yellow-600 hover:bg-yellow-500 text-white rounded-full font-bold transition-all border border-yellow-500/50 hover:scale-105 shadow-lg shadow-yellow-500/20"
+                                >
+                                    <ListOrdered size={18}/> 切换其他赛事
+                                </button>
+                            </div>
+                        ) : isHidden ? (
+                            // ✅ 分支 B: 阶段被隐藏
                             <div className="flex-1 flex flex-col items-center justify-center bg-black text-zinc-600">
                                 <Lock size={64} className="mb-4 opacity-20"/>
                                 <h3 className="text-2xl font-black text-zinc-500 uppercase">STAGE LOCKED / HIDDEN</h3>

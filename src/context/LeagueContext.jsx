@@ -25,6 +25,20 @@ export const LeagueProvider = ({ children }) => {
       return saved ? JSON.parse(saved) : null;
     } catch(e) { return null; }
   });
+  // 辅助函数：按日期倒序排列赛事 (最新的在前面)
+const sortTournamentsByDate = (list) => {
+  return [...list].sort((a, b) => {
+    // 假设 dateRange 格式为 "2025/10/17 - 2025/11/2"
+    // 取 " - " 之前的部分作为开始时间
+    const getStartTime = (range) => {
+        if (!range) return 0;
+        const startStr = range.split('-')[0].trim().replace(/\//g, '-');
+        return new Date(startStr).getTime() || 0;
+    };
+    // 倒序：B - A
+    return getStartTime(b.dateRange) - getStartTime(a.dateRange);
+  });
+};
 
 // --- 初始化：从后端读取数据 ---
   useEffect(() => {
@@ -46,7 +60,7 @@ export const LeagueProvider = ({ children }) => {
           
           // [修复] 之前可能漏掉了这两行，导致刷新后数据丢失
           setHistoryTournaments(data.historyTournaments || []); 
-          setTournaments(data.tournaments || []); // <--- 关键修复：读取赛事结构
+          setTournaments(sortTournamentsByDate(data.tournaments || [])); // <--- 关键修复：读取赛事结构
           
           setIsLoaded(true);
         }
@@ -310,9 +324,13 @@ const deleteAnnouncement = (id) => {
 
 // 【新增】赛事管理方法
   const saveTournament = (d) => {
-    const newTournaments = d.id 
+    const rawList = d.id 
       ? tournaments.map(t => t.id === d.id ? d : t)
       : [...tournaments, { ...d, id: `tour_${Date.now()}` }];
+    
+    // [修改] 保存前重新排序
+    const newTournaments = sortTournamentsByDate(rawList);
+    
     setTournaments(newTournaments);
     syncToRemote('tournaments', newTournaments);
   };

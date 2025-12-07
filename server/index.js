@@ -134,13 +134,30 @@ app.post('/api/sync', async (req, res) => {
           if (data.length > 0) await tx.playerStat.createMany({ data });
           break;
         case 'tournaments':
+          // 1. 先清空旧数据
           await tx.stage.deleteMany();
           await tx.tournament.deleteMany();
+          
+          // 2. 循环插入新数据
           for (const t of data) {
             const { stages, ...rest } = t;
-            await tx.tournament.create({ data: { ...rest, stages: { create: stages || [] } } });
+            
+            // 【核心修复】: 必须清洗 stage 对象，移除 tournamentId 字段
+            // Prisma 嵌套创建时会自动关联父ID，如果显式传入 tournamentId 会报错导致事务回滚
+            const cleanStages = stages ? stages.map(s => {
+                const { tournamentId, ...stageData } = s; 
+                return stageData;
+            }) : [];
+
+            await tx.tournament.create({ 
+                data: { 
+                    ...rest, 
+                    stages: { create: cleanStages } 
+                } 
+            });
           }
           break;
+        // =======================
         case 'announcements':
           await tx.announcement.deleteMany();
           if (data.length > 0) await tx.announcement.createMany({ data });
@@ -799,7 +816,7 @@ app.post('/api/pickem/pick', async (req, res) => {
         // 在 /api/pickem/pick 接口中添加正确数计算
 const pickData = {
     ...picks,
-    correctCount: calculateCorrectCount(picks, teams, matches, event.type)
+    correctCount: correctCount
 };
 
         if (existingPick) {
@@ -930,7 +947,8 @@ app.get('/api/pickem/tournament-view', async (req, res) => {
             orderBy: { createdAt: 'asc' }, // 按创建顺序（即阶段顺序）
             include: {
                 userPicks: userId ? { where: { userId } } : false, // 查当前用户的 Pick
-                matches: true // <--- [新增] 必须加上这一行，前端才能算对了几场
+                matches: true, // <--- [新增] 必须加上这一行，前端才能算对了几场
+                teams: true // <--- 🟢 [核心修改] 加上这一行！
             }
         });
 
@@ -1574,6 +1592,69 @@ app.post('/api/pickem/update-scores', async (req, res) => {
     } catch (e) {
         console.error("Update scores error:", e);
         res.status(500).json({ error: '更新正确数失败' });
+    }
+});
+
+// [新增] 重新录入/更新竞猜阶段的战队 (用于预创建阶段后的后期填充)
+app.post('/api/pickem/update-teams', async (req, res) => {
+    const { eventId, teams, type } = req.body; // type: 'SWISS' | 'SINGLE_ELIM'
+    
+    if (!eventId || !teams || teams.length === 0) {
+        return res.status(400).json({ error: '参数不完整' });
+    }
+
+    try {
+        await prisma.$transaction(async (tx) => {
+            // 1. 清理旧数据 (级联删除会删掉 matches 和 userPicks，但为了保险我们手动删 match)
+            // 注意：这样做会清空用户已有的预测！仅限比赛开始前操作。
+            await tx.pickemMatch.deleteMany({ where: { eventId } });
+            await tx.pickemTeam.deleteMany({ where: { eventId } });
+            // 如果你希望保留用户的“占位”预测记录，这里需要更复杂的逻辑，
+            // 但通常填充战队时意味着比赛还没开始，所以清空是安全的。
+
+            // 2. 创建新战队
+            const teamData = teams.map((name, index) => ({
+                eventId, name, seed: index + 1, status: 'ALIVE'
+            }));
+            await tx.pickemTeam.createMany({ data: teamData });
+            
+            // 3. 重新获取带 ID 的 teams
+            const createdTeams = await tx.pickemTeam.findMany({ 
+                where: { eventId }, orderBy: { seed: 'asc' }
+            });
+
+            // 4. 自动生成第一轮对阵 (逻辑同 init)
+            let initialMatches = [];
+
+            if (type === 'SWISS') {
+                const half = createdTeams.length / 2;
+                for (let i = 0; i < half; i++) {
+                    initialMatches.push({
+                        eventId, round: 1, matchGroup: '0-0',
+                        teamAId: createdTeams[i].id, teamBId: createdTeams[i + half].id,
+                        isBo3: false, isFinished: false
+                    });
+                }
+            } else if (type === 'SINGLE_ELIM') {
+                const { newMatches } = generateBracketPairings(createdTeams, [], 1);
+                initialMatches = newMatches.map(m => ({ ...m, eventId }));
+            }
+
+            if (initialMatches.length > 0) {
+                await tx.pickemMatch.createMany({ data: initialMatches });
+            }
+            
+            // 5. 确保活动状态是 OPEN
+            await tx.pickemEvent.update({
+                where: { id: eventId },
+                data: { status: 'OPEN', type: type } // 顺便更新一下 type，防止创建时选错
+            });
+        });
+
+        res.json({ success: true });
+    } catch (e) {
+        console.error("Update Teams Error:", e);
+        res.status(500).json({ error: '更新失败: ' + e.message });
     }
 });
 
