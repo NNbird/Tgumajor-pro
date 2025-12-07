@@ -1,0 +1,133 @@
+{
+  "siteConfig": {
+    "heroTitle": "ELITE STRIKE",
+    "heroSubtitle": "GRAND FINALS",
+    "heroDate": "Season 24 - Grand Finals",
+    "prizePool": "500,000",
+    "prizeGoal": 75,
+    "newsTicker": [
+      "BREAKING NEWS: 决赛阶段将于 12月10日 开启",
+      "奖金池已追加至 $500,000",
+      "NAVI 确认全员参赛",
+      "Team Spirit 领跑积分榜"
+    ],
+    "aboutText": "CS:LEAGUE 是专为社区打造的高端竞技平台。无论你是职业哥还是路人王，这里都有属于你的舞台。",
+    "howToText": [
+      "注册账号",
+      "组建战队",
+      "提交报名",
+      "等待审核"
+    ]
+  },
+  "matches": [
+    {
+      "id": 101,
+      "teamA": "NAVI",
+      "teamB": "FaZe",
+      "scoreA": 13,
+      "scoreB": 11,
+      "status": "Live",
+      "bo": 3,
+      "currentMap": "Inferno",
+      "maps": [
+        {
+          "name": "Mirage",
+          "score": "13-9",
+          "winner": "NAVI"
+        },
+        {
+          "name": "Nuke",
+          "score": "11-13",
+          "winner": "FaZe"
+        }
+      ]
+    },
+    {
+      "id": 102,
+      "teamA": "Team Spirit",
+      "teamB": "G2",
+      "scoreA": 0,
+      "scoreB": 0,
+      "status": "Upcoming",
+      "bo": 3,
+      "currentMap": "-",
+      "maps": []
+    }
+  ],
+  "feedbacks": [
+    {
+      "id": "fb_1",
+      "user": "S1mple_Fan",
+      "content": "网站做的很棒！希望能增加战队搜索功能。",
+      "date": "2024-03-20 14:30"
+    },
+    {
+      "id": "fb_2",
+      "user": "Guest",
+      "content": "什么时候开始下一轮报名？",
+      "date": "2024-03-21 09:15"
+    }
+  ],
+  "teams": [
+    {
+      "id": "t1",
+      "name": "NAVI (Mock)",
+      "tag": "NAVI",
+      "logoColor": "bg-yellow-400",
+      "avgElo": 2850,
+      "contact": "Official",
+      "status": "approved",
+      "rejectReason": "",
+      "ownerId": "admin",
+      "members": [
+        {
+          "id": "Wonderful",
+          "score": 3100,
+          "role": "AWP"
+        }
+      ]
+    },
+    {
+      "id": "t2",
+      "name": "FaZe",
+      "tag": "FAZE",
+      "logoColor": "bg-red-600",
+      "avgElo": 2820,
+      "contact": "Official",
+      "status": "approved",
+      "rejectReason": "",
+      "ownerId": "bot",
+      "members": []
+    }
+  ],
+  "playerStats": [
+    {
+      "id": 1,
+      "name": "Donk",
+      "team": "Spirit",
+      "rating": 1.55,
+      "adr": 105.2,
+      "rws": 14.5,
+      "hs": "55.0%"
+    },
+    {
+      "id": 2,
+      "name": "m0NESY",
+      "team": "G2",
+      "rating": 1.38,
+      "adr": 88.5,
+      "rws": 12.8,
+      "hs": "42.1%"
+    }
+  ],
+  "freeAgents": [],
+  "usersDB": [
+    {
+      "username": "admin",
+      "password": "123",
+      "role": "admin",
+      "id": "admin",
+      "name": "AdminUser"
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 自定义滚动条样式 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #18181b; 
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #3f3f46; 
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #52525b; 
+}
+
+body {
+  background-color: #000;
+  color: #fff;
+}
+/* 1. 赛博朋克网格背景 */
+.bg-grid-pattern {
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+}
+
+/* 2. 卡片悬停时的流光边框效果 */
+@keyframes border-flow {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.animate-border-flow {
+  background-size: 200% 200%;
+  animation: border-flow 3s ease infinite;
+}
+
+/* 3. 文字/按钮扫光特效 */
+@keyframes shine {
+  from { mask-position: 150%; -webkit-mask-position: 150%; }
+  to { mask-position: -50%; -webkit-mask-position: -50%; }
+}
+.shimmer-effect {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer-effect::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transform: skewX(-20deg);
+  transform-origin: bottom left;
+  animation: shine 3s infinite; /* 3秒扫光一次 */
+}
+
+/* 4. 呼吸光晕 */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 10px rgba(234, 179, 8, 0.2); }
+  50% { box-shadow: 0 0 25px rgba(234, 179, 8, 0.6); }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite;
+}

@@ -1,0 +1,66 @@
+├── 1.txt
+├── index.html
+├── package.json
+├── package-lock.json
+├── postcss.config.js
+├── server
+│   ├── 2db.json
+│   ├── db.json.t
+│   ├── db-副本.json
+│   ├── index.js
+│   ├── initialData.js
+│   ├── migrate.js
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── prisma
+│   │   └── schema.prisma
+│   ├── utils
+│   │   ├── bracketSystem.js
+│   │   └── swissSystem.js
+│   └── winners.json
+├── src
+│   ├── App.jsx
+│   ├── components
+│   │   ├── admin
+│   │   │   └── PickemManager.jsx
+│   │   ├── AIChatWidget.jsx
+│   │   ├── Layout.jsx
+│   │   ├── logo.png
+│   │   ├── modals
+│   │   │   ├── AnnouncementModal.jsx
+│   │   │   ├── C4Modal.jsx
+│   │   │   ├── DefuseModal.jsx
+│   │   │   ├── GuessPlayerModal.jsx
+│   │   │   ├── HistoryEditModal.jsx
+│   │   │   ├── LoginModal.jsx
+│   │   │   ├── MatchEditModal.jsx
+│   │   │   ├── PlayerDetailModal.jsx
+│   │   │   ├── TeamEditModal.jsx
+│   │   │   └── TournamentEditModal.jsx
+│   │   ├── Navbar.jsx
+│   │   ├── ParticleBackground.jsx
+│   │   ├── PlayerRadar.jsx
+│   │   └── StatusBadge.jsx
+│   ├── context
+│   │   └── LeagueContext.jsx
+│   ├── data
+│   │   ├── mockData.js
+│   │   └── playersGameData.js
+│   ├── index.css
+│   ├── main.jsx
+│   ├── pages
+│   │   ├── Admin.jsx
+│   │   ├── Feedback.jsx
+│   │   ├── History.jsx
+│   │   ├── Home.jsx
+│   │   ├── Maintenance.jsx
+│   │   ├── Matches.jsx
+│   │   ├── PickEm.jsx
+│   │   ├── Profile.jsx
+│   │   ├── Register.jsx
+│   │   ├── Stats.jsx
+│   │   └── Teams.jsx
+│   └── utils
+│       └── dataParser.js
+├── tailwind.config.js
+└── vite.config.mjs
