@@ -311,7 +311,7 @@ const DropSlot = ({ id, label, team, onRemove, type, isFinished, realTeamStats, 
 // 3. 单败淘汰 (BRACKET) 组件
 // ==========================================
 
-const DraggableCard = ({ id, text, disabled, isCorrect, isWrong, isSource, isFromSlot = false, slotId }) => {
+const DraggableCard = ({ id, text, disabled, isCorrect, isWrong, isSource, isFromSlot = false, slotId, isSelected, onCardClick }) => {
     const uniqueId = isFromSlot ? `slot-${slotId}-${id}` : `src-${id}`;
     
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ 
@@ -359,9 +359,22 @@ const DraggableCard = ({ id, text, disabled, isCorrect, isWrong, isSource, isFro
         bgClass = isFromSlot ? "bg-zinc-800 hover:bg-zinc-700" : "bg-zinc-800 hover:bg-zinc-700";
     }
 
+    // [新增] 选中状态样式
+    if (isSelected) {
+        borderClass = "border-yellow-400 ring-2 ring-yellow-500 ring-offset-2 ring-offset-black z-50";
+        bgClass = "bg-yellow-500/20";
+        textClass = "text-white font-black scale-105";
+    }
+
     return (
         <div ref={setNodeRef} style={style} {...listeners} {...attributes} 
-             className={`w-32 h-10 ${bgClass} border ${borderClass} flex items-center justify-center text-[10px] font-bold ${textClass} rounded shadow-sm select-none relative transition-all duration-200 ${!disabled ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}>
+             onClick={(e) => {
+                 if(onCardClick && !disabled) {
+                     e.stopPropagation(); 
+                     onCardClick(id); 
+                 }
+             }}
+             className={`w-20 lg:w-32 h-8 lg:h-10 ${bgClass} border ${borderClass} flex items-center justify-center text-[8px] lg:text-[10px] font-bold ${textClass} rounded shadow-sm select-none relative transition-all duration-200 ${!disabled ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'} ${isSelected ? 'animate-pulse' : ''}`}>
             {text}
             {isCorrect && <div className="absolute -top-1 -right-1 bg-green-500 text-black rounded-full p-0.5 animate-bounce"><CheckCircle2 size={8}/></div>}
             {isWrong && <div className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 animate-pulse"><XIcon size={8}/></div>}
@@ -372,36 +385,39 @@ const DraggableCard = ({ id, text, disabled, isCorrect, isWrong, isSource, isFro
     );
 };
 
-const BracketDropZone = ({ id, children, placeholder, disabled, onRemove, isOver: externalIsOver = false }) => {
+const BracketDropZone = ({ id, children, placeholder, disabled, onRemove, isOver: externalIsOver = false, onZoneClick, isHighlight }) => {
     const { setNodeRef, isOver } = useDroppable({ 
         id, 
         disabled 
     });
     
     const combinedIsOver = isOver || externalIsOver;
+    const highlightClass = isHighlight ? "border-yellow-500 bg-yellow-500/10 shadow-[0_0_15px_rgba(234,179,8,0.3)] cursor-pointer" : "";
     
     return (
-        <div ref={setNodeRef} className={`w-32 h-10 border-2 rounded flex items-center justify-center relative transition-all duration-200 group ${combinedIsOver ? 'border-yellow-500 bg-yellow-500/10 scale-105 shadow-lg shadow-yellow-500/20' : 'border-zinc-800 bg-black/40'}`}>
-            {children ? children : <span className="text-[9px] text-zinc-600 uppercase font-bold">{placeholder}</span>}
+        <div ref={setNodeRef} 
+            onClick={() => { if(onZoneClick && !disabled) onZoneClick(id); }}
+            className={`w-20 lg:w-32 h-8 lg:h-10 border-2 rounded flex items-center justify-center relative transition-all duration-200 group ${combinedIsOver ? 'border-yellow-500 bg-yellow-500/10 scale-105 shadow-lg shadow-yellow-500/20' : 'border-zinc-800 bg-black/40'} ${highlightClass}`}>
+            
+            {children ? children : <span className="text-[8px] lg:text-[9px] text-zinc-600 uppercase font-bold">{placeholder}</span>}
+            
+            {/* ... 删除按钮逻辑不变 ... */}
             {children && !disabled && (
                 <button 
-                    onMouseDown={(e) => { 
-                        e.stopPropagation(); 
-                        e.preventDefault();
-                        onRemove(id); 
-                    }} 
+                    onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); onRemove(id); }} 
                     className="absolute -top-2 -right-2 bg-zinc-800 text-zinc-500 hover:text-red-500 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-all duration-200 z-20 shadow-md border border-zinc-700 hover:scale-110"
-                    title="移除"
                 >
                     <XIcon size={10}/>
                 </button>
             )}
-            <div className="absolute -left-4 top-1/2 w-4 h-px bg-zinc-800"></div>
+            
+            {/* 左侧连接线适配 */}
+            <div className="absolute -left-2 lg:-left-4 top-1/2 w-2 lg:w-4 h-px bg-zinc-800"></div>
         </div>
     );
 };
 
-const BracketStage = ({ eventData, userPicks, handleRemoveBracketPick, isLocked, isFinished, showMyPicks }) => {
+const BracketStage = ({ eventData, userPicks, handleRemoveBracketPick, isLocked, isFinished, showMyPicks, mobileSelectedId, onTeamClick, onSlotClick }) => {
     const { matches, teams } = eventData;
     const picks = userPicks.bracketPicks || {};
     const [activeDragSlot, setActiveDragSlot] = useState(null);
@@ -454,6 +470,8 @@ const BracketStage = ({ eventData, userPicks, handleRemoveBracketPick, isLocked,
                     isSource={true}
                     isFromSlot={true}
                     slotId={slotId}
+                    isSelected={mobileSelectedId === String(pickId)} // 判断是否被选中
+                    onCardClick={onTeamClick} // 传入点击函数
                 />
             );
         }
@@ -497,6 +515,8 @@ const BracketStage = ({ eventData, userPicks, handleRemoveBracketPick, isLocked,
                     text={tA.name} 
                     disabled={isLocked || isUsedInSemiOrHigherA}
                     isSource={true}
+                    isSelected={mobileSelectedId === String(tA.id)}
+                    onCardClick={onTeamClick}
                 />
                 <div className="absolute -right-8 top-1/2 -translate-y-1/2 w-8 h-full flex items-center opacity-50 group-hover:opacity-100 transition-opacity">
                     <div className="w-4 h-full border-r border-t border-b border-zinc-700 rounded-r-sm"></div>
@@ -507,6 +527,8 @@ const BracketStage = ({ eventData, userPicks, handleRemoveBracketPick, isLocked,
                     text={tB.name} 
                     disabled={isLocked || isUsedInSemiOrHigherB}
                     isSource={true}
+                    isSelected={mobileSelectedId === String(tB.id)}
+                    onCardClick={onTeamClick}
                 />
             </div>
         );
@@ -529,11 +551,13 @@ const BracketStage = ({ eventData, userPicks, handleRemoveBracketPick, isLocked,
     };
 
     return (
-        <div className="flex-1 flex items-stretch justify-center p-10 overflow-x-auto min-w-max bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] bg-fixed">
+        // 1. 外层容器：改为左对齐或居中，内边距减小 (p-2 lg:p-10)
+        <div className="flex-1 flex items-stretch justify-center p-2 lg:p-10 overflow-x-auto min-w-max bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] bg-fixed">
             
             {/* 1. Quarter Finals (4 Groups) */}
-            <div className="flex flex-col justify-around mr-8">
-                <div className="text-center text-zinc-500 text-[10px] font-bold mb-4 uppercase tracking-widest">Quarter Finals</div>
+            {/* 修改：mr-2 lg:mr-8 (减小右边距) */}
+            <div className="flex flex-col justify-around mr-2 lg:mr-8">
+                <div className="text-center text-zinc-500 text-[8px] lg:text-[10px] font-bold mb-4 uppercase tracking-widest">Quarter Finals</div>
                 {renderQuarterMatch('Q1', [1,8])}
                 {renderQuarterMatch('Q2', [4,5])}
                 {renderQuarterMatch('Q3', [3,6])}
@@ -541,96 +565,74 @@ const BracketStage = ({ eventData, userPicks, handleRemoveBracketPick, isLocked,
             </div>
 
             {/* 2. Semi Finals (2 Groups) */}
-            <div className="flex flex-col justify-around mr-8 pt-8">
-                <div className="text-center text-zinc-500 text-[10px] font-bold -mt-8 uppercase tracking-widest">Semi Finals</div>
+            {/* 修改：mr-2 lg:mr-8, pt-4 lg:pt-8 */}
+            <div className="flex flex-col justify-around mr-2 lg:mr-8 pt-4 lg:pt-8">
+                <div className="text-center text-zinc-500 text-[8px] lg:text-[10px] font-bold -mt-8 uppercase tracking-widest">Semi Finals</div>
                 
+                {/* S1 区域 */}
                 <div className="flex flex-col gap-3 h-64 justify-center relative">
-                    <BracketDropZone 
-                        id="S1_Top" 
-                        onRemove={handleRemoveBracketPick} 
-                        disabled={isLocked}
-                        isOver={checkHover('S1_Top')}
-                    >
+                    <BracketDropZone id="S1_Top" onRemove={handleRemoveBracketPick} disabled={isLocked} isOver={checkHover('S1_Top')} onZoneClick={onSlotClick} isHighlight={!!mobileSelectedId}>
                         {renderCardContent('S1_Top', 'Winner Q1')}
                     </BracketDropZone>
-                    <div className="absolute -right-8 top-1/2 -translate-y-1/2 w-8 h-full flex items-center">
-                        <div className="w-4 h-full border-r border-t border-b border-zinc-700 rounded-r-sm"></div>
-                        <div className="w-4 h-px bg-zinc-700"></div>
+                    
+                    {/* 连接线适配：-right-2 lg:-right-8, w-2 lg:w-8 */}
+                    <div className="absolute -right-2 lg:-right-8 top-1/2 -translate-y-1/2 w-2 lg:w-8 h-full flex items-center">
+                        <div className="w-1 lg:w-4 h-full border-r border-t border-b border-zinc-700 rounded-r-sm"></div> {/* w-1 lg:w-4 */}
+                        <div className="w-1 lg:w-4 h-px bg-zinc-700"></div> {/* w-1 lg:w-4 */}
                     </div>
-                    <BracketDropZone 
-                        id="S1_Bot" 
-                        onRemove={handleRemoveBracketPick} 
-                        disabled={isLocked}
-                        isOver={checkHover('S1_Bot')}
-                    >
+
+                    <BracketDropZone id="S1_Bot" onRemove={handleRemoveBracketPick} disabled={isLocked} isOver={checkHover('S1_Bot')} onZoneClick={onSlotClick} isHighlight={!!mobileSelectedId}>
                         {renderCardContent('S1_Bot', 'Winner Q2')}
                     </BracketDropZone>
                 </div>
 
+                {/* S2 区域 */}
                 <div className="flex flex-col gap-3 h-64 justify-center relative">
-                    <BracketDropZone 
-                        id="S2_Top" 
-                        onRemove={handleRemoveBracketPick} 
-                        disabled={isLocked}
-                        isOver={checkHover('S2_Top')}
-                    >
+                    <BracketDropZone id="S2_Top" onRemove={handleRemoveBracketPick} disabled={isLocked} isOver={checkHover('S2_Top')} onZoneClick={onSlotClick} isHighlight={!!mobileSelectedId}>
                         {renderCardContent('S2_Top', 'Winner Q3')}
                     </BracketDropZone>
-                    <div className="absolute -right-8 top-1/2 -translate-y-1/2 w-8 h-full flex items-center">
-                        <div className="w-4 h-full border-r border-t border-b border-zinc-700 rounded-r-sm"></div>
-                        <div className="w-4 h-px bg-zinc-700"></div>
+
+                    {/* 连接线适配 */}
+                    <div className="absolute -right-2 lg:-right-8 top-1/2 -translate-y-1/2 w-2 lg:w-8 h-full flex items-center">
+                        <div className="w-1 lg:w-4 h-full border-r border-t border-b border-zinc-700 rounded-r-sm"></div>
+                        <div className="w-1 lg:w-4 h-px bg-zinc-700"></div>
                     </div>
-                    <BracketDropZone 
-                        id="S2_Bot" 
-                        onRemove={handleRemoveBracketPick} 
-                        disabled={isLocked}
-                        isOver={checkHover('S2_Bot')}
-                    >
+
+                    <BracketDropZone id="S2_Bot" onRemove={handleRemoveBracketPick} disabled={isLocked} isOver={checkHover('S2_Bot')} onZoneClick={onSlotClick} isHighlight={!!mobileSelectedId}>
                         {renderCardContent('S2_Bot', 'Winner Q4')}
                     </BracketDropZone>
                 </div>
             </div>
 
             {/* 3. Grand Final (1 Group) */}
-            <div className="flex flex-col justify-center mr-8 pt-8">
-                <div className="text-center text-yellow-500 text-[10px] font-bold -mt-8 uppercase tracking-widest">Grand Final</div>
+            {/* 修改：mr-2 lg:mr-8 */}
+            <div className="flex flex-col justify-center mr-2 lg:mr-8 pt-4 lg:pt-8">
+                <div className="text-center text-yellow-500 text-[8px] lg:text-[10px] font-bold -mt-8 uppercase tracking-widest">Grand Final</div>
                 <div className="flex flex-col gap-3 h-[500px] justify-center relative">
-                    <BracketDropZone 
-                        id="F1_Top" 
-                        onRemove={handleRemoveBracketPick} 
-                        disabled={isLocked}
-                        isOver={checkHover('F1_Top')}
-                    >
+                    <BracketDropZone id="F1_Top" onRemove={handleRemoveBracketPick} disabled={isLocked} isOver={checkHover('F1_Top')} onZoneClick={onSlotClick} isHighlight={!!mobileSelectedId}>
                         {renderCardContent('F1_Top', 'Semi Winner 1')}
                     </BracketDropZone>
                     
                     <div className="text-center">
-                        <div className="text-2xl font-black text-yellow-500 italic animate-pulse">VS</div>
-                        <div className="absolute -right-8 top-1/2 -translate-y-1/2 w-8 h-px bg-yellow-500/50 group-hover:bg-yellow-500 transition-colors"></div>
+                        <div className="text-lg lg:text-2xl font-black text-yellow-500 italic animate-pulse">VS</div>
+                        {/* 中间线适配：-right-2 lg:-right-8, w-2 lg:w-8 */}
+                        <div className="absolute -right-2 lg:-right-8 top-1/2 -translate-y-1/2 w-2 lg:w-8 h-px bg-yellow-500/50 group-hover:bg-yellow-500 transition-colors"></div>
                     </div>
 
-                    <BracketDropZone 
-                        id="F1_Bot" 
-                        onRemove={handleRemoveBracketPick} 
-                        disabled={isLocked}
-                        isOver={checkHover('F1_Bot')}
-                    >
+                    <BracketDropZone id="F1_Bot" onRemove={handleRemoveBracketPick} disabled={isLocked} isOver={checkHover('F1_Bot')} onZoneClick={onSlotClick} isHighlight={!!mobileSelectedId}>
                         {renderCardContent('F1_Bot', 'Semi Winner 2')}
                     </BracketDropZone>
                 </div>
             </div>
 
             {/* 4. Champion */}
-            <div className="flex flex-col justify-center pt-8">
-                <div className="text-center text-yellow-400 text-[10px] font-bold -mt-8 uppercase tracking-widest animate-pulse">Champion</div>
-                <div className="border-4 border-yellow-500/20 p-8 rounded-full bg-gradient-to-b from-yellow-900/20 to-transparent relative group hover:border-yellow-500/40 transition-colors">
-                    <Trophy size={64} className="text-yellow-500 mb-6 mx-auto drop-shadow-[0_0_25px_rgba(234,179,8,0.6)] group-hover:scale-110 transition-transform duration-300"/>
-                    <BracketDropZone 
-                        id="Champion" 
-                        onRemove={handleRemoveBracketPick} 
-                        disabled={isLocked}
-                        isOver={checkHover('Champion')}
-                    >
+            <div className="flex flex-col justify-center pt-4 lg:pt-8">
+                <div className="text-center text-yellow-400 text-[8px] lg:text-[10px] font-bold -mt-8 uppercase tracking-widest animate-pulse">Champion</div>
+                {/* 奖杯容器适配：p-2 lg:p-8 */}
+                <div className="border-4 border-yellow-500/20 p-2 lg:p-8 rounded-full bg-gradient-to-b from-yellow-900/20 to-transparent relative group hover:border-yellow-500/40 transition-colors">
+                    {/* 奖杯图标适配：w-8 h-8 lg:w-16 lg:h-16 */}
+                    <Trophy className="text-yellow-500 mb-2 lg:mb-6 mx-auto drop-shadow-[0_0_25px_rgba(234,179,8,0.6)] group-hover:scale-110 transition-transform duration-300 w-8 h-8 lg:w-16 lg:h-16" />
+                    <BracketDropZone id="Champion" onRemove={handleRemoveBracketPick} disabled={isLocked} isOver={checkHover('Champion')} onZoneClick={onSlotClick} isHighlight={!!mobileSelectedId}>
                         {renderCardContent('Champion', 'WINNER')}
                     </BracketDropZone>
                 </div>
@@ -656,6 +658,84 @@ export default function PickEm() {
     const [submitting, setSubmitting] = useState(false);
     const [showMyPicks, setShowMyPicks] = useState(false); 
     const [activeDragId, setActiveDragId] = useState(null);
+    // --- [新增] 移动端点选模式状态 ---
+    const [mobileSelectedId, setMobileSelectedId] = useState(null); // 当前选中的战队ID
+
+    // [新增] 处理战队点击 (选中/取消)
+    const handleTeamClick = (teamId) => {
+        if (isLocked || isFinished) return;
+        // 如果点击已选中的，则取消选中；否则选中新的
+        setMobileSelectedId(prev => prev === String(teamId) ? null : String(teamId));
+    };
+
+    // [新增] 处理槽位点击 (填入逻辑)
+    const handleSlotClick = (slotId) => {
+        if (!mobileSelectedId || isLocked || isFinished) return;
+        
+        // 调用通用的放置逻辑 (模拟拖拽结束的数据结构)
+        // 我们直接复用 handleDragEnd 的核心逻辑，或者在这里手动执行更新
+        // 为了安全起见，我们直接调用一个专门的更新函数
+        executePickUpdate(mobileSelectedId, slotId);
+        
+        // 填入后自动取消选中，体验更好
+        setMobileSelectedId(null);
+    };
+
+    // [新增] 核心更新逻辑 (从 handleDragEnd 提取或重写，适配两种模式)
+    const executePickUpdate = (rawTeamId, slotId) => {
+        const teamId = String(rawTeamId).replace(/^(src-|pick-)/, ''); // 清理ID前缀
+        
+        // --- A. 单败淘汰赛逻辑 (Bracket) ---
+        if (currentEventData.event.type === 'SINGLE_ELIM') {
+            const matches = currentEventData.matches;
+            const bracketPicks = userPicks.bracketPicks || {};
+            const getPick = (sid) => String(bracketPicks[sid] || '');
+
+            let isValid = false;
+            
+            // 验证规则 (直接复制原 handleDragEnd 的验证逻辑)
+            if (['S1_Top', 'S1_Bot', 'S2_Top', 'S2_Bot'].includes(slotId)) {
+                const groupMap = { 'S1_Top':'Q1', 'S1_Bot':'Q2', 'S2_Top':'Q3', 'S2_Bot':'Q4' };
+                const match = matches.find(m => m.matchGroup === groupMap[slotId]);
+                if (match) isValid = (teamId === String(match.teamAId) || teamId === String(match.teamBId));
+            }
+            else if (slotId === 'F1_Top') isValid = (teamId === getPick('S1_Top') || teamId === getPick('S1_Bot'));
+            else if (slotId === 'F1_Bot') isValid = (teamId === getPick('S2_Top') || teamId === getPick('S2_Bot'));
+            else if (slotId === 'Champion') isValid = (teamId === getPick('F1_Top') || teamId === getPick('F1_Bot'));
+
+            if (!isValid) return; // 验证不通过，不执行
+
+            setUserPicks(prev => {
+                const newBracket = { ...(prev.bracketPicks || {}), [slotId]: teamId };
+                // 级联清除逻辑 (复制原 handleDragEnd)
+                if (slotId.includes('S1')) { 
+                    if (newBracket['F1_Top'] !== teamId) delete newBracket['F1_Top'];
+                    if (!newBracket['F1_Top']) delete newBracket['Champion']; // 链式清理
+                    if (newBracket['Champion'] === getPick('F1_Top')) delete newBracket['Champion']; 
+                }
+                if (slotId.includes('S2')) { 
+                    if (newBracket['F1_Bot'] !== teamId) delete newBracket['F1_Bot'];
+                    if (!newBracket['F1_Bot']) delete newBracket['Champion'];
+                }
+                if (slotId.includes('F1')) {
+                     if (newBracket['Champion'] !== teamId) delete newBracket['Champion'];
+                }
+                return { ...prev, bracketPicks: newBracket };
+            });
+        } 
+        // --- B. 瑞士轮逻辑 (Swiss) ---
+        else {
+            // 瑞士轮简单很多，直接填
+            const team = currentEventData.teams.find(t => String(t.id) === teamId);
+            if(!team) return;
+
+            const existingKey = Object.keys(userPicks).find(k => String(userPicks[k]?.id) === String(teamId));
+            const newPicks = { ...userPicks };
+            if (existingKey) delete newPicks[existingKey];
+            newPicks[slotId] = team; 
+            setUserPicks(newPicks);
+        }
+    };
     
     // 排行榜相关状态
     const [leaderboard, setLeaderboard] = useState([]);
@@ -1236,11 +1316,11 @@ const { tasks, coinLevel } = useMemo(() => {
 
     return (
         <DndContext sensors={sensors} onDragStart={(e) => setActiveDragId(e.active.id)} onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
-            <div className="fixed top-20 left-0 right-0 bottom-0 z-0 flex justify-center pb-6 px-4 lg:px-8 pointer-events-none">
+            <div className="fixed top-20 left-0 right-0 bottom-0 z-0 flex justify-center pb-6 px-2 lg:px-8 pointer-events-none overflow-y-auto lg:overflow-hidden">
                 <div className="w-full max-w-[1600px] h-full bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden pointer-events-auto">
                     
                     {/* Header */}
-                    <div className="h-14 bg-zinc-900/80 backdrop-blur border-b border-zinc-800 flex items-center justify-between px-4 shrink-0 z-50">
+                    <div className="min-h-14 bg-zinc-900/80 backdrop-blur border-b border-zinc-800 flex flex-col lg:flex-row items-center justify-between px-4 py-2 lg:py-0 shrink-0 z-50 gap-2 lg:gap-0">
                         <div className="flex items-center gap-3">
                             
                             {/* [修复] 1. 赛事选择下拉 (点击触发 + 遮罩) */}
@@ -1384,25 +1464,30 @@ const { tasks, coinLevel } = useMemo(() => {
                                 isFinished={isFinished}
                                 showMyPicks={showMyPicks}
                                 handleRemoveBracketPick={handleRemoveBracketPick}
+                                mobileSelectedId={mobileSelectedId}
+                                onTeamClick={handleTeamClick}
+                                onSlotClick={handleSlotClick}
                             />
                         ) : (
                             // --- 瑞士轮布局 (3栏) ---
                             <>
                                 {/* 中间：战队池 + 对阵图 */}
-                                <div className="flex-1 flex border-r border-zinc-800 min-w-0 bg-black">
-                                    <SeedList 
-                                        teams={currentEventData?.teams || []} 
-                                        usedIds={Object.values(userPicks).map(p=>p.id)} 
-                                        isLocked={isLocked} 
-                                    />
-                                    <div className="flex-1 relative overflow-hidden bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] bg-fixed">
-                                        <div className="absolute inset-0 opacity-10 pointer-events-none"></div>
-                                        {currentEventData && <SwissBracket matches={currentEventData.matches} teams={currentEventData.teams} userPicks={userPicks} showUserPicks={showMyPicks} />}
-                                    </div>
+                                <div className="flex-1 flex flex-col lg:flex-row border-r border-zinc-800 min-w-0 bg-black overflow-y-auto lg:overflow-visible">
+                                    <div className="hidden lg:block h-full">
+                                             <SeedList 
+                                                teams={currentEventData?.teams || []} 
+                                                usedIds={Object.values(userPicks).map(p=>p.id)} 
+                                                isLocked={isLocked} 
+                                            />
+                                        </div>
+                                    <div className="flex-1 relative overflow-hidden bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] bg-fixed min-h-[300px] lg:h-auto border-b lg:border-b-0 border-zinc-800">
+                                    <div className="absolute inset-0 opacity-10 pointer-events-none"></div>
+                                    {currentEventData && <SwissBracket matches={currentEventData.matches} teams={currentEventData.teams} userPicks={userPicks} showUserPicks={showMyPicks} />}
+                                </div>
                                 </div>
 
                                 {/* 右侧：竞猜填空 */}
-                                <div className="w-80 shrink-0 bg-zinc-950 flex flex-col overflow-y-auto custom-scrollbar p-4 z-20 border-l border-zinc-800">
+                                <div className="w-full lg:w-80 shrink-0 bg-zinc-950 flex flex-col overflow-y-visible lg:overflow-y-auto custom-scrollbar p-4 z-20 border-l border-zinc-800 pb-20 lg:pb-4">
                                     <div className="space-y-6">
                                         <div>
                                             <div className="flex items-center gap-2 mb-2"><div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div><span className="text-[10px] font-black text-white italic uppercase">3-0 Undefeated</span></div>

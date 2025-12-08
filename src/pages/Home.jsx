@@ -1,15 +1,21 @@
 import React, { useMemo, useState } from 'react';
 import { useLeague } from '../context/LeagueContext';
-import { Trophy, Users, DollarSign, Tv, ArrowRight, Flame, Target, Zap, Bell } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Trophy, Users, DollarSign, Tv, ArrowRight, Flame, Target, Zap, Bell, Bomb, X } from 'lucide-react'; // [新增] Bomb, X
+import { Link, useNavigate } from 'react-router-dom'; // [新增] useNavigate
 import AnnouncementModal from '../components/modals/AnnouncementModal';
 import C4Modal from '../components/modals/C4Modal'; 
 
 export default function Home() {
   const { user, siteConfig, matches, teams, playerStats, tournaments, announcements } = useLeague();
+  const navigate = useNavigate(); // [新增] 跳转钩子
   
   const [showAnnouncement, setShowAnnouncement] = useState(false);
-  const [showC4, setShowC4] = useState(true); 
+  
+  // [修改] C4 默认为 false (不再自动弹出，改为手动点击右下角按钮)
+  const [showC4, setShowC4] = useState(false); 
+  
+  // [新增] 竞猜活动弹窗状态 (默认为 true，自动弹出)
+  const [showPromo, setShowPromo] = useState(true);
   
   const liveMatch = matches.find(m => m.status === 'Live' && m.streamUrl) 
                  || matches.find(m => m.status === 'Live') 
@@ -59,7 +65,6 @@ export default function Home() {
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 h-auto md:h-[600px]">
         
         {/* --- 1. Hero Card --- */}
-        {/* 这是一个展示卡片，我们不加 pointer-events-auto，允许用户在卡片空白处拖动背景 */}
         <div className="md:col-span-2 lg:col-span-2 md:row-span-2 relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10 group shadow-2xl">
           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542751371-adc38448a05e?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80')] bg-cover bg-center opacity-50 group-hover:scale-110 group-hover:opacity-40 transition-all duration-700 ease-out"></div>
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent"></div>
@@ -81,7 +86,6 @@ export default function Home() {
             <p className="text-zinc-400 mb-8 font-mono text-sm border-l-2 border-yellow-500 pl-3">{siteConfig.heroDate}</p>
             
             <div className="flex gap-4">
-              {/* [关键] 只有这两个按钮开启交互，其他区域全是透的 */}
               <Link to="/register" className="pointer-events-auto shimmer-effect relative overflow-hidden bg-white text-black px-8 py-3 font-black uppercase hover:bg-yellow-400 transition-colors clip-path-slant">
                 立即报名
               </Link>
@@ -93,7 +97,6 @@ export default function Home() {
         </div>
 
         {/* --- 2. MVP Card --- */}
-        {/* 纯展示，保持穿透，允许用户在选手头像上拖动背景 */}
         <div className="md:col-span-1 bg-zinc-900/80 backdrop-blur-md rounded-2xl border border-zinc-800 p-6 flex flex-col justify-between relative overflow-hidden group hover:border-zinc-600 transition-colors">
             <div className="absolute top-[-50px] right-[-50px] w-32 h-32 bg-cyan-500/20 rounded-full blur-[50px] group-hover:bg-cyan-500/30 transition-all"></div>
             <div>
@@ -134,7 +137,6 @@ export default function Home() {
         </div>
 
         {/* --- 3. Live Match Card --- */}
-        {/* 同样纯展示，只给按钮加交互 */}
         <div className={`md:col-span-1 rounded-2xl border p-6 text-center flex flex-col justify-center relative overflow-hidden transition-all duration-500 ${
             liveMatch?.status === 'Live' 
             ? 'bg-zinc-900 border-red-500/50 shadow-[0_0_30px_rgba(220,38,38,0.15)]' 
@@ -170,7 +172,6 @@ export default function Home() {
                   <div className="text-[10px] text-zinc-400 uppercase tracking-widest mb-6 border-b border-white/5 pb-4">
                       {liveMatch.currentMap || 'Map Pending'} • BO{liveMatch.bo}
                   </div>
-                  {/* [关键] 按钮开启交互 */}
                   {liveMatch.status === 'Live' && liveMatch.streamUrl ? (
                       <a href={liveMatch.streamUrl} target="_blank" rel="noopener noreferrer" className="pointer-events-auto group w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-red-900/20">
                           <Tv size={18} className="group-hover:animate-bounce"/> WATCH STREAM
@@ -186,13 +187,12 @@ export default function Home() {
         </div>
 
         {/* --- 4. Prize Pool --- */}
-        {/* 纯展示，保持穿透 */}
         <div className="md:col-span-1 bg-zinc-900 rounded-2xl border border-zinc-800 p-6 flex flex-col items-center justify-center text-center group hover:border-yellow-500/30 transition-colors relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-yellow-500 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <div className="bg-yellow-500/10 p-4 rounded-full mb-4 group-hover:scale-110 transition-transform duration-500">
                 <DollarSign size={32} className="text-yellow-500"/>
             </div>
-            <div className="text-zinc-500 text-[10px] uppercase tracking-[0.2em] mb-1">Total Prize Pool</div>
+            <div className="text-zinc-500 text-xs uppercase tracking-[0.2em] mb-1">Total Prize Pool</div>
             <div className="text-2xl font-black text-white mb-6 text-nowrap w-full overflow-hidden text-ellipsis px-2">
                 {siteConfig.prizePool}
             </div>
@@ -208,7 +208,6 @@ export default function Home() {
         </div>
 
         {/* --- 5. Registered Teams --- */}
-        {/* [关键] 这个卡片整体是一个 Link，必须开启交互 */}
         <Link to="/teams" className="pointer-events-auto md:col-span-1 bg-zinc-900 rounded-2xl border border-zinc-800 p-6 flex flex-col items-center justify-center text-center group hover:bg-zinc-800 transition-all cursor-pointer relative overflow-hidden">
             <div className="absolute -right-6 -bottom-6 opacity-5 group-hover:opacity-10 transition-opacity rotate-12">
                 <Users size={120} />
@@ -226,7 +225,6 @@ export default function Home() {
       </div>
 
       {/* 关于赛事 */}
-      {/* 纯文本展示，保持穿透，让用户拖背景玩 */}
       <div className="bg-zinc-900/50 p-8 rounded-2xl border border-white/5 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-yellow-500 to-transparent"></div>
           <h3 className="text-2xl font-black text-white mb-4 flex items-center gap-2">
@@ -237,14 +235,76 @@ export default function Home() {
           </p>
       </div>
 
-      {/* 弹窗容器：必须开启 pointer-events-auto，否则点不到弹窗里的按钮 */}
+      {/* [新增] C4 悬浮按钮 (手动触发) - 定位在 AI 助手上方 (bottom-24) */}
+      {/* 必须加 pointer-events-auto，否则会被外层容器的 pointer-events-none 屏蔽 */}
+      <button 
+        onClick={() => setShowC4(true)}
+        className="fixed bottom-24 right-6 z-50 w-12 h-12 bg-zinc-900 border border-red-500/30 text-red-500 rounded-full shadow-2xl flex items-center justify-center hover:scale-110 hover:bg-red-900/20 hover:border-red-500 transition-all duration-300 group pointer-events-auto"
+        title="拆弹小游戏"
+      >
+         <Bomb size={20} className="group-hover:animate-bounce" />
+         <span className="absolute top-0 right-0 w-3 h-3 bg-red-600 rounded-full animate-ping"></span>
+      </button>
+
+      {/* 弹窗容器：必须开启 pointer-events-auto */}
       <div className="pointer-events-auto">
           <AnnouncementModal 
             announcements={announcements} 
             onClose={() => setShowAnnouncement(false)} 
             alwaysShow={showAnnouncement} 
           />
+          {/* C4 弹窗 */}
           {user && showC4 && <C4Modal onClose={() => setShowC4(false)} />}
+          
+          {/* [新增] 竞猜活动推广弹窗 */}
+          {showPromo && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+                <div className="bg-zinc-900 border border-yellow-500/30 w-full max-w-md rounded-2xl shadow-[0_0_50px_rgba(234,179,8,0.2)] overflow-hidden relative animate-in zoom-in-95 duration-300">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                    
+                    <button onClick={() => setShowPromo(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-white transition-colors z-10">
+                        <X size={20} />
+                    </button>
+
+                    <div className="p-8 text-center flex flex-col items-center">
+                        <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mb-6 animate-bounce">
+                            <Trophy size={32} className="text-yellow-500" />
+                        </div>
+                        
+                        <h3 className="text-2xl font-black text-white italic uppercase mb-2">
+                            CHAMPION <span className="text-yellow-500">PICK'EM</span>
+                        </h3>
+                        
+                        <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
+                            Major 冠军竞猜活动现已开启！<br/>
+                            预测赛程，赢取限定徽章和积分奖励。
+                        </p>
+
+                        <div className="flex gap-3 w-full">
+                            <button 
+                                onClick={() => setShowPromo(false)} 
+                                className="flex-1 py-3 rounded-xl border border-zinc-700 text-zinc-400 font-bold text-sm hover:bg-zinc-800 hover:text-white transition-all"
+                            >
+                                稍后再说
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    setShowPromo(false);
+                                    navigate('/pickem');
+                                }} 
+                                className="flex-1 py-3 rounded-xl bg-yellow-500 text-black font-black text-sm uppercase hover:bg-yellow-400 hover:scale-105 transition-all shadow-lg shadow-yellow-500/20"
+                            >
+                                立即参与
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div className="h-1 w-full bg-zinc-800">
+                        <div className="h-full bg-yellow-500 w-2/3"></div>
+                    </div>
+                </div>
+            </div>
+          )}
       </div>
       
     </div>

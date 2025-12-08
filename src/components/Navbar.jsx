@@ -172,6 +172,7 @@ const NavItem = ({ to, icon: Icon, label, onClick }) => (
             <NavItem to="/teams" icon={Users} label="参赛战队" onClick={() => setIsMenuOpen(false)} />
             <NavItem to="/matches" icon={Map} label="近期对局" onClick={() => setIsMenuOpen(false)} />
             <NavItem to="/stats" icon={BarChart3} label="数据统计" onClick={() => setIsMenuOpen(false)} />
+            <NavItem to="/pickem" icon={Crosshair} label="冠军竞猜" onClick={() => setIsMenuOpen(false)} />
             <NavItem to="/register" icon={Activity} label="报名中心" onClick={() => setIsMenuOpen(false)} />
             <NavItem to="/feedback" icon={MessageSquare} label="公测留言" onClick={() => setIsMenuOpen(false)} />
             
