@@ -64,3 +64,15 @@
 │       └── dataParser.js
 ├── tailwind.config.js
 └── vite.config.mjs
+
+
+# 1. 把修改加入暂存区（相当于把作业放进书包）
+git add .
+
+# 2. 确认提交并写说明（相当于把书包拉链拉好，并贴上标签说“我写完了”）
+git commit -m "这里写你改了什么，比如：修复了首页Bug"
+
+# 3. 推送到 GitHub（相当于把书包交给老师）
+git push
+
+git push -f origin main

@@ -86,7 +86,8 @@ app.get('/api/db', async (req, res) => {
       prisma.tournament.findMany({ include: { stages: true } }),
       prisma.playerStat.findMany({ orderBy: { rating: 'desc' } }),
       prisma.announcement.findMany({ orderBy: { date: 'desc' } }),
-      prisma.historyTournament.findMany({ orderBy: { year: 'desc' } }),
+      // ✅ [核心修复] 强制按年份倒序，这是保证列表稳定的唯一方法
+      prisma.historyTournament.findMany({ orderBy: { id: 'asc' } }),
       prisma.user.findMany(),
       prisma.feedback.findMany({ orderBy: { id: 'desc' } }),
       prisma.siteConfig.findMany()
@@ -164,7 +165,16 @@ app.post('/api/sync', async (req, res) => {
           break;
         case 'historyTournaments':
           await tx.historyTournament.deleteMany();
-          if (data.length > 0) await tx.historyTournament.createMany({ data });
+          if (data.length > 0) {
+             // 🟢 [绝招]：重写 ID。根据前端传来的顺序，生成可排序的 ID。
+             // 第一条数据 ID 为 "h_00000"，第二条 "h_00001"...
+             // 这样数据库里物理存储就是有序的，且 ID 本身也是有序的。
+             const orderedData = data.map((item, index) => ({
+                 ...item,
+                 id: `h_${String(index).padStart(5, '0')}` 
+             }));
+             await tx.historyTournament.createMany({ data: orderedData });
+          }
           break;
         case 'feedbacks':
           await tx.feedback.deleteMany();

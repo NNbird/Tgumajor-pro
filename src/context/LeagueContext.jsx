@@ -5,6 +5,15 @@ export const useLeague = () => useContext(LeagueContext);
 
 const API_BASE = ''; 
 
+// [新增] 辅助函数：按年份倒序排列历史记录 (最新的年份在前面)
+const sortHistoryByYear = (list) => {
+  return [...list].sort((a, b) => {
+    const yearA = parseInt(a.year) || 0;
+    const yearB = parseInt(b.year) || 0;
+    return yearB - yearA; // 倒序: 2025 -> 2024 -> ...
+  });
+};
+
 export const LeagueProvider = ({ children }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState(null);
@@ -59,7 +68,7 @@ const sortTournamentsByDate = (list) => {
           setAnnouncements(data.announcements || []);
           
           // [修复] 之前可能漏掉了这两行，导致刷新后数据丢失
-          setHistoryTournaments(data.historyTournaments || []); 
+          setHistoryTournaments(data.historyTournaments || []);
           setTournaments(sortTournamentsByDate(data.tournaments || [])); // <--- 关键修复：读取赛事结构
           
           setIsLoaded(true);
@@ -300,11 +309,35 @@ const deleteAnnouncement = (id) => {
     syncToRemote('feedbacks', newFeedbacks);
   };
 
-// 【新增】保存历史锦标赛
-  const saveHistoryTournament = (d) => {
-    const newHistory = d.id 
-      ? historyTournaments.map(h => h.id === d.id ? d : h)
-      : [...historyTournaments, { ...d, id: `hist_${Date.now()}` }];
+const saveHistoryTournament = (d) => {
+    // 复制副本
+    let newHistory = [...historyTournaments]; 
+
+    if (d.id) {
+      // [编辑模式]：原地更新，绝对不改变位置
+      // 注意：虽然 ID 在后台被重写了，但 React Key 匹配没问题，刷新后会获取新 ID
+      newHistory = newHistory.map(h => h.id === d.id ? d : h);
+    } else {
+      // [新建模式]：智能插入
+      // 先给个临时 ID，反正存到后台会被重写为 h_000xx
+      const newItem = { ...d, id: `temp_${Date.now()}` }; 
+      const newYear = parseInt(newItem.year) || 0;
+
+      // 找到插入位置：插在第一个“年份比我小”的记录前面
+      // 假设列表当前是：[2025A, 2025B, 2024, 2022]
+      // 新建 2023 -> 插在 2022 前面
+      const insertIndex = newHistory.findIndex(h => {
+          const currentYear = parseInt(h.year) || 0;
+          return currentYear < newYear;
+      });
+
+      if (insertIndex === -1) {
+        newHistory.push(newItem); // 没找到更小的，放最后
+      } else {
+        newHistory.splice(insertIndex, 0, newItem); // 插队
+      }
+    }
+
     setHistoryTournaments(newHistory);
     syncToRemote('historyTournaments', newHistory);
   };

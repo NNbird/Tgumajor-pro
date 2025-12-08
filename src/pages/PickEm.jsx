@@ -1076,6 +1076,7 @@ const { tasks, coinLevel } = useMemo(() => {
 
     // --- Drag Logic ---
     // --- 核心拖拽逻辑 ---
+    // --- 核心拖拽逻辑 ---
     const handleDragEnd = (event) => {
         // 比赛结束且不查看作业时，禁止操作
         if (currentEventData?.event?.status === 'FINISHED' && !showMyPicks) return;
@@ -1095,8 +1096,8 @@ const { tasks, coinLevel } = useMemo(() => {
             const matches = currentEventData.matches;
             const bracketPicks = userPicks.bracketPicks || {};
             
-            // 辅助：获取某槽位已选的 TeamID (String)
-            const getPick = (sid) => String(picks[sid] || '');
+            // 🟢 [修复]：这里必须使用 bracketPicks，而不是 picks
+            const getPick = (sid) => String(bracketPicks[sid] || '');
 
             // 1. 定义合法性规则 (Strict Tree Logic)
             let isValid = false;
@@ -1130,13 +1131,16 @@ const { tasks, coinLevel } = useMemo(() => {
                 // 修改了 S1 区 -> 清除 F1_Top 和 冠军
                 if (slotId.includes('S1')) { 
                     if (newBracket['F1_Top'] !== teamId) delete newBracket['F1_Top'];
-                    if (!newBracket['F1_Top']) delete newBracket['Champion'];
-                    if (newBracket['Champion'] === getPick('F1_Top')) delete newBracket['Champion']; 
+                    // 级联清除冠军
+                    const f1Top = newBracket['F1_Top']; 
+                    if (!f1Top || newBracket['Champion'] === f1Top) delete newBracket['Champion']; // 逻辑修正
                 }
                 // 修改了 S2 区 -> 清除 F1_Bot 和 冠军
                 if (slotId.includes('S2')) { 
                     if (newBracket['F1_Bot'] !== teamId) delete newBracket['F1_Bot'];
-                    if (!newBracket['F1_Bot']) delete newBracket['Champion'];
+                    // 级联清除冠军
+                    const f1Bot = newBracket['F1_Bot'];
+                    if (!f1Bot || newBracket['Champion'] === f1Bot) delete newBracket['Champion'];
                 }
                 // 修改了 F1 区 -> 清除 冠军
                 if (slotId.includes('F1')) {

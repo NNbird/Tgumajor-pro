@@ -38,7 +38,7 @@ function SecurityGuard({ children }) {
 
 export default function App() {
   // 🔥 [开关] true = 开启维护模式, false = 正常网站
-  const IS_MAINTENANCE_MODE = true;
+  const IS_MAINTENANCE_MODE = false;
 
   const [showLogin, setShowLogin] = React.useState(false);
 
