@@ -14,7 +14,9 @@ if (typeof global.File === 'undefined') {
 
 import express from 'express';
 import cors from 'cors';
-//import fs from 'fs/promises';
+// [修改] 同时引入异步 fs (默认) 和同步方法 (解构)
+import fs from 'fs/promises'; 
+import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { INITIAL_DATA } from './initialData.js';
@@ -23,7 +25,7 @@ import * as cheerio from 'cheerio';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import multer from 'multer'; // [新增]
-import fs from 'fs';         // [新增]
+
 
 
 
@@ -44,9 +46,10 @@ app.use(express.json({ limit: '50mb' }));
 
 // [新增] 1. 配置静态文件服务 (用于访问上传的图片)
 // 图片将可以通过 http://localhost:3001/uploads/xxx.jpg 访问
+// [修改] 这里的 fs.existsSync 改为 existsSync
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) {
-    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+if (!existsSync(UPLOADS_DIR)) {
+    mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 app.use('/uploads', express.static(UPLOADS_DIR));
 
@@ -105,7 +108,8 @@ app.post('/api/check-name', async (req, res) => {
 app.get('/api/db', async (req, res) => {
   try {
     const [
-      matches, tournaments, players, announcements, historyTournaments, users, feedbacks, siteConfigList
+      matches, tournaments, players, announcements, historyTournaments, users, feedbacks, siteConfigList,
+      teams, freeAgents // [新增]
     ] = await Promise.all([
       prisma.match.findMany({ orderBy: { id: 'desc' } }), 
       prisma.tournament.findMany({ include: { stages: true } }),
@@ -115,7 +119,9 @@ app.get('/api/db', async (req, res) => {
       prisma.historyTournament.findMany({ orderBy: { id: 'asc' } }),
       prisma.user.findMany(),
       prisma.feedback.findMany({ orderBy: { id: 'desc' } }),
-      prisma.siteConfig.findMany()
+      prisma.siteConfig.findMany(),
+      prisma.team.findMany(),      // [新增] 读取战队
+      prisma.freeAgent.findMany()  // [新增] 读取散人
     ]);
 
     const siteConfig = siteConfigList[0] || {};
@@ -132,8 +138,8 @@ app.get('/api/db', async (req, res) => {
       historyTournaments,
       usersDB: users,
       feedbacks,
-      teams: [], 
-      freeAgents: [] 
+      teams: teams || [],           // [修改] 返回真实数据
+      freeAgents: freeAgents || []  // [修改] 返回真实数据
     });
   } catch (e) {
     console.error("DB Error:", e);
@@ -159,28 +165,63 @@ app.post('/api/sync', async (req, res) => {
           await tx.playerStat.deleteMany();
           if (data.length > 0) await tx.playerStat.createMany({ data });
           break;
+       // [核心修复] 赛事同步逻辑优化
         case 'tournaments':
-          // 1. 先清空旧数据
-          await tx.stage.deleteMany();
-          await tx.tournament.deleteMany();
+          // ❌ 绝对不能使用 deleteMany()！这会导致关联的战队/散人数据因外键约束而报错或丢失。
+          // ✅ 改为遍历数据，使用 upsert (有则更新，无则新增)
           
-          // 2. 循环插入新数据
           for (const t of data) {
-            const { stages, ...rest } = t;
-            
-            // 【核心修复】: 必须清洗 stage 对象，移除 tournamentId 字段
-            // Prisma 嵌套创建时会自动关联父ID，如果显式传入 tournamentId 会报错导致事务回滚
-            const cleanStages = stages ? stages.map(s => {
-                const { tournamentId, ...stageData } = s; 
-                return stageData;
-            }) : [];
+            const { stages, id, ...rest } = t;
 
-            await tx.tournament.create({ 
-                data: { 
-                    ...rest, 
-                    stages: { create: cleanStages } 
-                } 
+            // 1. 更新或创建赛事本体
+            // rest 中包含了 registrationStatus，这样更新就能保存下来了
+            await tx.tournament.upsert({
+              where: { id: id },
+              update: { ...rest }, 
+              create: { id, ...rest }
             });
+
+            // 2. 同步阶段 (Stage)
+            // Stage 是赛事的子结构，且设置了 onDelete: Cascade，所以可以重建
+            // 先删除该赛事下的旧阶段
+            await tx.stage.deleteMany({ where: { tournamentId: id } });
+            
+            // 再创建新阶段
+            if (stages && stages.length > 0) {
+                await tx.stage.createMany({
+                    data: stages.map(s => ({
+                        id: s.id,
+                        name: s.name,
+                        tournamentId: id
+                    }))
+                });
+            }
+          }
+          break;
+          
+          // [新增] 战队同步逻辑
+        case 'teams':
+          await tx.team.deleteMany();
+          if (data.length > 0) {
+             // 确保 cleaning data，防止 id 冲突或脏数据
+             const cleanData = data.map(d => ({
+                 ...d,
+                 // 确保关联的 tournamentId 是存在的，如果不存在设为 null，防止报错
+                 tournamentId: d.tournamentId || null 
+             }));
+             await tx.team.createMany({ data: cleanData });
+          }
+          break;
+
+        // [新增] 散人同步逻辑
+        case 'freeAgents':
+          await tx.freeAgent.deleteMany();
+          if (data.length > 0) {
+             const cleanData = data.map(d => ({
+                 ...d,
+                 tournamentId: d.tournamentId || null 
+             }));
+             await tx.freeAgent.createMany({ data: cleanData });
           }
           break;
         // =======================

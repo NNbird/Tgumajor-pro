@@ -21,14 +21,55 @@ model News {
   createdAt   DateTime @default(now())
 }
 
-// 1. 赛事表
+// 1. 赛事表 (修改)
 model Tournament {
-  id        String   @id @default(uuid())
-  name      String
-  dateRange String
-  stages    Stage[]  
-  matches   Match[]  
-  players   PlayerStat[] 
+  id                 String   @id @default(uuid())
+  name               String
+  dateRange          String
+  // 👇 [新增] 必须加这行，否则状态存不进去！
+  registrationStatus String   @default("NOT_STARTED") 
+  
+  stages             Stage[]  
+  matches            Match[]  
+  players            PlayerStat[] 
+  
+  // 👇 [新增] 关联战队和散人 (如果你之前加了 Team 表，这里必须关联)
+  teams              Team[]
+  freeAgents         FreeAgent[]
+}
+
+// [新增] 2. 战队报名表 (Team)
+model Team {
+  id           String   @id @default(uuid())
+  name         String
+  tag          String?
+  digitalId    String?  // 完美战队ID
+  contact      String?
+  avgElo       String?
+  logoColor    String?
+  status       String   @default("pending") // pending, approved, rejected
+  rejectReason String?
+  ownerId      String?  // 队长用户ID
+  members      Json     // 成员列表 (存 JSON 数组)
+  
+  tournamentId String?  // 归属赛事
+  tournament   Tournament? @relation(fields: [tournamentId], references: [id])
+}
+
+// [新增] 3. 散人报名表 (FreeAgent)
+model FreeAgent {
+  id           String   @id @default(uuid())
+  name         String
+  steamId      String?
+  role         String?
+  score        String?
+  class        String?
+  studentId    String?
+  contact      String?
+  ownerId      String?  // 用户ID
+  
+  tournamentId String?  // 归属赛事
+  tournament   Tournament? @relation(fields: [tournamentId], references: [id])
 }
 
 // 2. 阶段表
