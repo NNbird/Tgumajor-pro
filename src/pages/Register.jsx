@@ -3,36 +3,48 @@ import { useLeague } from '../context/LeagueContext';
 import { Lock, Trash2, Plus, Save, AlertCircle, CheckCircle, Info, User, Hash, School, BookOpen } from 'lucide-react';
 
 export default function Register() {
-  const { user, teams, saveTeam, deleteTeam, freeAgents, saveFreeAgent, deleteFreeAgent } = useLeague();
+  const { user, teams, saveTeam, deleteTeam, freeAgents, saveFreeAgent, deleteFreeAgent, tournaments } = useLeague();
   const [activeTab, setActiveTab] = useState('team'); 
+  
+  // --- 新增：赛事选择状态 ---
+  const [selectedTourId, setSelectedTourId] = useState('');
+  
+  // 初始化默认赛事 (优先选 OPEN 的，否则选第一个)
+  useEffect(() => {
+    if (tournaments.length > 0 && !selectedTourId) {
+      const openTour = tournaments.find(t => t.registrationStatus === 'OPEN');
+      setSelectedTourId(openTour ? openTour.id : tournaments[0].id);
+    }
+  }, [tournaments]);
 
-  // 核心逻辑：根据当前登录用户的 ID 查找是否存在已提交的报名信息
-  const myTeam = user ? teams.find(t => t.ownerId === user.id) : null;
-  const myAgent = user ? freeAgents.find(f => f.ownerId === user.id) : null;
+  // 获取当前赛事对象及状态
+  const currentTournament = tournaments.find(t => t.id === selectedTourId);
+  const isRegistrationOpen = currentTournament?.registrationStatus === 'OPEN';
+
+  // --- 核心逻辑修改：查找当前用户在 *当前选中赛事* 下的报名信息 ---
+  const myTeam = user ? teams.find(t => t.ownerId === user.id && t.tournamentId === selectedTourId) : null;
+  const myAgent = user ? freeAgents.find(f => f.ownerId === user.id && f.tournamentId === selectedTourId) : null;
 
   // --- Team Form State ---
-  // [优化] 新增 digitalId, members 结构扩充
   const [teamForm, setTeamForm] = useState({
     name: '', tag: '', contact: '', digitalId: '',
     members: Array(5).fill({ id: '', steamId: '', class: '', studentId: '', score: '', role: 'Rifler' })
   });
 
   // --- Free Agent Form State ---
-  // [优化] 新增 steamId, class, studentId
   const [faForm, setFaForm] = useState({ 
     name: '', steamId: '', class: '', studentId: '',
     score: '', role: 'Rifler', contact: '' 
   });
 
-  // 数据回填
+  // 数据回填：当切换赛事或数据加载完成时，回填表单
   useEffect(() => {
     if (myTeam) {
       setTeamForm({
         name: myTeam.name,
         tag: myTeam.tag,
         contact: myTeam.contact,
-        digitalId: myTeam.digitalId || '', // 回填完美ID
-        // 兼容旧数据：如果旧数据没有新字段，给予默认空值
+        digitalId: myTeam.digitalId || '',
         members: myTeam.members.map(m => ({
             id: m.id || '',
             steamId: m.steamId || '',
@@ -42,8 +54,14 @@ export default function Register() {
             role: m.role || 'Rifler'
         }))
       });
+    } else {
+      // 如果当前赛事没报名，重置表单
+      setTeamForm({
+        name: '', tag: '', contact: '', digitalId: '',
+        members: Array(5).fill({ id: '', steamId: '', class: '', studentId: '', score: '', role: 'Rifler' })
+      });
     }
-  }, [myTeam]);
+  }, [myTeam, selectedTourId]); // 监听 selectedTourId
 
   useEffect(() => {
     if (myAgent) {
@@ -56,8 +74,10 @@ export default function Register() {
         role: myAgent.role,
         contact: myAgent.contact
       });
+    } else {
+      setFaForm({ name: '', steamId: '', class: '', studentId: '', score: '', role: 'Rifler', contact: '' });
     }
-  }, [myAgent]);
+  }, [myAgent, selectedTourId]); // 监听 selectedTourId
 
   if (!user) return (
     <div className="text-center py-24 space-y-6 animate-in fade-in">
@@ -82,20 +102,22 @@ export default function Register() {
     setTeamForm({ ...teamForm, members: newMembers });
   };
   
-  // [优化] 新增成员时也带上完整结构
   const addMember = () => !isTeamLocked && teamForm.members.length < 7 && setTeamForm({ ...teamForm, members: [...teamForm.members, { id: '', steamId: '', class: '', studentId: '', score: '', role: 'Substitute' }] });
   const removeMember = () => !isTeamLocked && teamForm.members.length > 5 && setTeamForm({ ...teamForm, members: teamForm.members.slice(0, -1) });
   
   const handleTeamSubmit = (e) => {
     e.preventDefault();
     if (isTeamLocked) return;
+    if (!selectedTourId) return alert("请先选择赛事！");
+
     const avg = (teamForm.members.reduce((a, b) => a + (Number(b.score) || 0), 0) / teamForm.members.length).toFixed(0);
     
     saveTeam({
         id: myTeam?.id,
+        tournamentId: selectedTourId, // <--- 关键：绑定当前选中的赛事ID
         name: teamForm.name,
         tag: teamForm.tag.toUpperCase(),
-        digitalId: teamForm.digitalId, // 保存完美ID
+        digitalId: teamForm.digitalId,
         logoColor: 'bg-cyan-500', 
         avgElo: avg,
         contact: teamForm.contact,
@@ -107,7 +129,6 @@ export default function Register() {
   const handleTeamDelete = () => {
     if(confirm('确定要撤销报名吗？此操作不可恢复。')) {
         deleteTeam(myTeam.id);
-        // 重置表单
         setTeamForm({ name: '', tag: '', contact: '', digitalId: '', members: Array(5).fill({ id: '', steamId: '', class: '', studentId: '', score: '', role: 'Rifler' }) });
     }
   };
@@ -115,8 +136,11 @@ export default function Register() {
   // FA Handlers
   const handleFaSubmit = (e) => {
     e.preventDefault();
+    if (!selectedTourId) return alert("请先选择赛事！");
+
     saveFreeAgent({
         id: myAgent?.id,
+        tournamentId: selectedTourId, // <--- 关键：绑定当前选中的赛事ID
         ...faForm
     });
     alert(myAgent ? '个人信息已更新！' : '个人信息已发布！');
@@ -131,6 +155,41 @@ export default function Register() {
 
   return (
     <div className="space-y-8 animate-in slide-in-from-bottom-4 pb-20">
+      
+      {/* --- 新增：顶部赛事选择器 --- */}
+      <div className="flex flex-col items-center gap-4 mb-8 pt-8">
+        <h2 className="text-2xl font-black text-white uppercase">选择报名赛事</h2>
+        <div className="relative z-20 w-full max-w-md">
+           <select 
+             value={selectedTourId} 
+             onChange={e => setSelectedTourId(e.target.value)}
+             className="w-full bg-zinc-900 border-2 border-yellow-500 text-white text-lg font-bold p-3 rounded shadow-[0_0_15px_rgba(234,179,8,0.3)] focus:outline-none text-center appearance-none"
+           >
+             {tournaments.map(t => (
+               <option key={t.id} value={t.id}>
+                 {t.name} {t.registrationStatus === 'OPEN' ? '(报名中)' : t.registrationStatus === 'CLOSED' ? '(已截止)' : '(未开始)'}
+               </option>
+             ))}
+           </select>
+        </div>
+        
+        {/* 状态提示 */}
+        {!isRegistrationOpen && (
+          <div className="bg-red-900/30 border border-red-500/50 text-red-200 px-6 py-4 rounded-lg flex items-center max-w-xl text-center mt-4">
+            <AlertCircle className="mr-3 flex-shrink-0" />
+            <div>
+               <div className="font-bold text-lg">该赛事当前无法报名</div>
+               <div className="text-sm opacity-80">
+                 状态：{currentTournament?.registrationStatus === 'CLOSED' ? '报名已截止' : '尚未开放报名'}
+               </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* --- 内容区域：只有报名开启时显示 --- */}
+      {isRegistrationOpen && (
+      <>
       <div className="flex justify-center space-x-4 mb-8">
         <button onClick={() => setActiveTab('team')} className={`px-6 py-2 font-bold border-b-2 transition-colors ${activeTab==='team' ? 'border-yellow-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>战队报名</button>
         <button onClick={() => setActiveTab('freeagent')} className={`px-6 py-2 font-bold border-b-2 transition-colors ${activeTab==='freeagent' ? 'border-cyan-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>散人登记</button>
@@ -138,6 +197,11 @@ export default function Register() {
 
       {activeTab === 'team' ? (
         <div className="max-w-5xl mx-auto bg-zinc-900/80 border border-zinc-700 p-8 relative overflow-hidden rounded-sm shadow-xl">
+            {/* 提示当前赛事 */}
+            <div className="text-center mb-6 text-zinc-500 text-xs uppercase tracking-widest border-b border-zinc-800 pb-4">
+               正在报名: <span className="text-yellow-500 font-bold ml-2">{currentTournament?.name}</span>
+            </div>
+
             {/* 状态提示栏 */}
             {myTeam && (
                 <div className={`mb-8 p-4 border-l-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${
@@ -196,7 +260,7 @@ export default function Register() {
                     </div>
                 </div>
 
-                {/* 队员列表 (优化版) */}
+                {/* 队员列表 */}
                 <div className="space-y-3 bg-zinc-950/50 p-4 border border-zinc-800 rounded">
                     <div className="flex justify-between items-center text-zinc-400 text-xs uppercase tracking-wider pb-2 border-b border-zinc-800 mb-2">
                         <span>战队成员 ({teamForm.members.length})</span>
@@ -214,36 +278,30 @@ export default function Register() {
                                     <span>MEMBER #{i + 1} <span className="text-zinc-600 font-normal">({i < 5 ? 'Main' : 'Substitute'})</span></span>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
-                                    {/* 1. 游戏ID */}
                                     <div className="lg:col-span-1">
                                         <div className="flex items-center bg-black border border-zinc-700 rounded px-2">
                                             <User size={14} className="text-zinc-500 mr-2"/>
                                             <input required disabled={isTeamLocked} placeholder="游戏ID" className="w-full bg-transparent py-2 text-white text-sm outline-none" value={m.id} onChange={e => updateMember(i, 'id', e.target.value)} />
                                         </div>
                                     </div>
-                                    {/* 2. Steam ID */}
                                     <div className="lg:col-span-1">
                                         <input required disabled={isTeamLocked} placeholder="SteamID (7656...)" className="w-full bg-black border border-zinc-700 rounded py-2 px-3 text-white text-sm outline-none focus:border-yellow-500 font-mono" value={m.steamId} onChange={e => updateMember(i, 'steamId', e.target.value)} />
                                     </div>
-                                    {/* 3. 班级 */}
                                     <div className="lg:col-span-1">
                                         <div className="flex items-center bg-black border border-zinc-700 rounded px-2">
                                             <School size={14} className="text-zinc-500 mr-2"/>
                                             <input required disabled={isTeamLocked} placeholder="班级 (外援填外援)" className="w-full bg-transparent py-2 text-white text-sm outline-none" value={m.class} onChange={e => updateMember(i, 'class', e.target.value)} />
                                         </div>
                                     </div>
-                                    {/* 4. 学号 */}
                                     <div className="lg:col-span-1">
                                         <div className="flex items-center bg-black border border-zinc-700 rounded px-2">
                                             <BookOpen size={14} className="text-zinc-500 mr-2"/>
                                             <input required disabled={isTeamLocked} placeholder="学号" className="w-full bg-transparent py-2 text-white text-sm outline-none font-mono" value={m.studentId} onChange={e => updateMember(i, 'studentId', e.target.value)} />
                                         </div>
                                     </div>
-                                    {/* 5. Elo */}
                                     <div className="lg:col-span-1">
                                         <input required disabled={isTeamLocked} type="number" placeholder="天梯分 (Elo)" className="w-full bg-black border border-zinc-700 rounded py-2 px-3 text-white text-sm outline-none focus:border-yellow-500 font-mono text-right" value={m.score} onChange={e => updateMember(i, 'score', e.target.value)} />
                                     </div>
-                                    {/* 6. Role */}
                                     <div className="lg:col-span-1">
                                         <select disabled={isTeamLocked} className="w-full bg-black border border-zinc-700 rounded py-2 px-3 text-zinc-300 text-sm outline-none focus:border-yellow-500" value={m.role} onChange={e => updateMember(i, 'role', e.target.value)}>
                                             <option>Rifler</option><option>AWP</option><option>IGL</option><option>Entry</option><option>Support</option><option>Substitute</option>
@@ -270,6 +328,7 @@ export default function Register() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
+            {/* 左侧：散人表单 */}
             <div className="lg:col-span-1 bg-zinc-900/80 p-6 border border-zinc-700 h-fit rounded-sm shadow-xl">
                 <div className="flex justify-between items-center mb-6 pb-4 border-b border-zinc-800">
                     <h3 className="text-xl font-black text-white text-cyan-400 uppercase">{myAgent ? '编辑我的信息' : '我是散人 (LFT)'}</h3>
@@ -316,36 +375,41 @@ export default function Register() {
                 </form>
             </div>
             
+            {/* 右侧：散人列表 (也需要过滤) */}
             <div className="lg:col-span-2">
                 <h3 className="text-xl font-black text-white mb-4 uppercase flex items-center">
                     <User className="mr-2 text-cyan-500"/> 寻找队伍的选手
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {freeAgents.map(agent => (
-                    <div key={agent.id} className={`bg-zinc-900 p-4 border-l-2 flex justify-between items-center group transition-colors ${user && agent.ownerId === user.id ? 'border-yellow-500 bg-zinc-800' : 'border-cyan-500 hover:bg-zinc-800'}`}>
-                        <div>
-                        <div className="font-bold text-white text-lg flex items-center">
-                            {agent.name} 
-                            {user && agent.ownerId === user.id && <span className="ml-2 text-[10px] bg-yellow-500 text-black px-1.5 py-0.5 rounded font-bold">YOU</span>}
+                    {freeAgents
+                      .filter(a => a.tournamentId === selectedTourId) // 只显示当前赛事的散人
+                      .map(agent => (
+                        <div key={agent.id} className={`bg-zinc-900 p-4 border-l-2 flex justify-between items-center group transition-colors ${user && agent.ownerId === user.id ? 'border-yellow-500 bg-zinc-800' : 'border-cyan-500 hover:bg-zinc-800'}`}>
+                            <div>
+                            <div className="font-bold text-white text-lg flex items-center">
+                                {agent.name} 
+                                {user && agent.ownerId === user.id && <span className="ml-2 text-[10px] bg-yellow-500 text-black px-1.5 py-0.5 rounded font-bold">YOU</span>}
+                            </div>
+                            <div className="text-xs text-zinc-500 mt-1 flex items-center gap-2">
+                                <span className="bg-zinc-800 px-1.5 rounded border border-zinc-700 text-zinc-400">{agent.role}</span>
+                                <span className="font-mono text-cyan-400">{agent.score} Elo</span>
+                            </div>
+                            </div>
+                            <div className="text-right">
+                            <div className="text-cyan-400 text-sm font-mono bg-cyan-900/20 px-2 py-1 rounded border border-cyan-900/50">{agent.contact}</div>
+                            </div>
                         </div>
-                        <div className="text-xs text-zinc-500 mt-1 flex items-center gap-2">
-                            <span className="bg-zinc-800 px-1.5 rounded border border-zinc-700 text-zinc-400">{agent.role}</span>
-                            <span className="font-mono text-cyan-400">{agent.score} Elo</span>
-                        </div>
-                        </div>
-                        <div className="text-right">
-                        <div className="text-cyan-400 text-sm font-mono bg-cyan-900/20 px-2 py-1 rounded border border-cyan-900/50">{agent.contact}</div>
-                        </div>
-                    </div>
                     ))}
                 </div>
-                {freeAgents.length === 0 && (
+                {freeAgents.filter(a => a.tournamentId === selectedTourId).length === 0 && (
                     <div className="text-zinc-500 text-center py-10 bg-zinc-900/30 rounded border border-zinc-800 border-dashed">
-                        暂无散人玩家登记，快来发布第一条吧！
+                        该赛事暂无散人玩家登记，快来发布第一条吧！
                     </div>
                 )}
             </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

@@ -15,7 +15,10 @@ const sortHistoryByYear = (list) => {
 };
 
 export const LeagueProvider = ({ children }) => {
+  
+  const [newsList, setNewsList] = useState([]); // [新增] 新闻列表
   const [isLoaded, setIsLoaded] = useState(false);
+  
   const [error, setError] = useState(null);
   
   const [siteConfig, setSiteConfig] = useState({});
@@ -79,6 +82,14 @@ const sortTournamentsByDate = (list) => {
         setError(err.message);
         setIsLoaded(true);
       });
+      
+    // [新增] 单独获取新闻 (或者你可以把新闻也放到 db.json 统一接口里，但独立接口更灵活)
+    fetch(`${API_BASE}/api/news`)
+      .then(res => res.json())
+      .then(data => {
+        if(data.success) setNewsList(data.news);
+      })
+      .catch(console.error);
   }, []);
 
   const syncToRemote = (collection, newData) => {
@@ -90,6 +101,48 @@ const sortTournamentsByDate = (list) => {
   };
 
   // --- 业务方法 ---
+  
+  
+  
+// [修改] 新闻保存方法
+  const saveNews = async (newsData) => {
+    try {
+        // 判断是否为 FormData (文件上传)
+        const isFormData = newsData instanceof FormData;
+        
+        const res = await fetch(`${API_BASE}/api/news/save`, {
+            method: 'POST', 
+            // 如果是 FormData，不要手动设置 Content-Type，浏览器会自动处理 boundary
+            headers: isFormData ? {} : { 'Content-Type': 'application/json' },
+            body: isFormData ? newsData : JSON.stringify(newsData)
+        });
+        
+        const data = await res.json();
+        if(data.success) {
+            // 刷新列表
+            const listRes = await fetch(`${API_BASE}/api/news`);
+            const listData = await listRes.json();
+            setNewsList(listData.news);
+        }
+        return data;
+    } catch(e) { console.error(e); }
+  };
+
+  const deleteNews = async (id) => {
+      await fetch(`${API_BASE}/api/news/${id}`, { method: 'DELETE' });
+      setNewsList(prev => prev.filter(n => n.id !== id));
+  };
+
+  const togglePinNews = async (id, currentStatus) => {
+      await fetch(`${API_BASE}/api/news/pin`, {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ id, isPinned: !currentStatus })
+      });
+      // 重新拉取以更新排序
+      const listRes = await fetch(`${API_BASE}/api/news`);
+      const listData = await listRes.json();
+      setNewsList(listData.news);
+  };
 
   const updateSiteConfig = (newConf) => {
     setSiteConfig(newConf);
@@ -104,11 +157,27 @@ const sortTournamentsByDate = (list) => {
     syncToRemote('teams', newTeams);
   };
   
-  const adminUpdateTeam = (d) => {
-    const newTeams = teams.map(t => t.id === d.id ? d : t);
-    setTeams(newTeams);
-    syncToRemote('teams', newTeams);
-  };
+  // 在 LeagueContext.jsx 中找到 adminUpdateTeam 方法，替换为以下逻辑：
+
+const adminUpdateTeam = (d) => {
+  let newTeams;
+  if (d.id && teams.some(t => t.id === d.id)) {
+    // 如果 ID 存在，则是更新
+    newTeams = teams.map(t => t.id === d.id ? d : t);
+  } else {
+    // 如果 ID 不存在，则是管理员导入的新战队
+    // 自动生成 ID，标记状态为 approved (管理员导入的默认通过)，ownerId 设为 'admin' 或 null
+    const newTeam = { 
+      ...d, 
+      id: d.id || `t_${Date.now()}`, 
+      ownerId: d.ownerId || 'admin_import', 
+      status: d.status || 'approved' 
+    };
+    newTeams = [...teams, newTeam];
+  }
+  setTeams(newTeams);
+  syncToRemote('teams', newTeams);
+};
   
   const deleteTeam = (id) => {
     const newTeams = teams.filter(t => t.id !== id);
@@ -425,7 +494,7 @@ const value = {
     matches, updateMatch, deleteMatch, reorderMatches, importMatches, deleteMatches, batchUpdateMatches,announcements, saveAnnouncement, deleteAnnouncement,
     playerStats, importPlayers, updateSinglePlayer, deletePlayer, deletePlayers,
     freeAgents, saveFreeAgent, deleteFreeAgent,savePlayerStat,updateUserProfile,checkNameAvailability,
-    feedbacks, addFeedback, deleteFeedback,clearAllPlayers,
+    feedbacks, addFeedback, deleteFeedback,clearAllPlayers,newsList, saveNews, deleteNews, togglePinNews,
     
     // [检查] 确保这下面三行都存在
     historyTournaments, saveHistoryTournament, deleteHistoryTournament, reorderHistoryTournaments,

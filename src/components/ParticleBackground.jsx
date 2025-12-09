@@ -111,7 +111,7 @@ function GalaxyField() {
 
     if (hoverState.current.index !== null) {
         const hoverDuration = Date.now() - hoverState.current.startTime;
-        if (hoverDuration > 1000) { 
+        if (hoverDuration > 300) { 
             targetSpeed = 0.002; 
         }
     }

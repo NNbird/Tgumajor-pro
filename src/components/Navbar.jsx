@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Target } from 'lucide-react'; // 引入新图标
 import { Link, useLocation } from 'react-router-dom';
 import { useLeague } from '../context/LeagueContext';
 import { 
   Crosshair, Trophy, Users, Map, BarChart3, Activity, Menu, X, 
-  Settings, LogOut, LogIn, MessageSquare, User, History 
+  Settings, LogOut, LogIn, MessageSquare, User, History, FileText 
 } from 'lucide-react';
-import LoginModal from './modals/LoginModal'; // 确保这里引入了 LoginModal (如果是 Layout 处理可忽略，但通常 Navbar 控制登录按钮)
-import DefuseModal from './modals/DefuseModal'; // [新增] 引入拆弹弹窗
+import LoginModal from './modals/LoginModal';
+import DefuseModal from './modals/DefuseModal';
+import logo from './logo2.png'; // 如果没有图片，代码会自动降级显示文字
 
-export default function Navbar({ onLoginClick }) {
+export default function Navbar() {
   const { user, logout } = useLeague();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showLogin, setShowLogin] = useState(false); // 控制登录弹窗
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
   const activeTab = location.pathname;
@@ -21,29 +22,28 @@ export default function Navbar({ onLoginClick }) {
   const [pressTimer, setPressTimer] = useState(null);
   const [progress, setProgress] = useState(0); // 0-100
 
-  // 监听滚动
+  // 监听滚动，改变导航栏背景
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 50);
+    const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // 路由切换时关闭菜单
+  // 路由切换时自动关闭移动端菜单
   useEffect(() => {
     setIsMenuOpen(false);
   }, [location]);
 
-  // --- 长按检测逻辑 (Logo) ---
+  // --- Logo 长按彩蛋逻辑 ---
   const startPress = () => {
       if (pressTimer) clearInterval(pressTimer);
       let p = 0;
-      // 每 50ms 增加 2%，总共 2.5秒 充满
       const interval = setInterval(() => {
-          p += 2; 
+          p += 4; // 加快一点触发速度
           setProgress(p);
           if (p >= 100) {
               clearInterval(interval);
-              setShowDefuse(true); // 触发彩蛋
+              setShowDefuse(true); 
               setProgress(0);
           }
       }, 50);
@@ -55,176 +55,200 @@ export default function Navbar({ onLoginClick }) {
       setProgress(0);
   };
 
-  // 修改 NavItem 组件的样式 (减小 px, text-sm 改为 text-xs 或保持 sm 但紧凑点)
-const NavItem = ({ to, icon: Icon, label, onClick }) => (
-  <Link 
-    to={to} 
-    onClick={onClick}
-    className={`flex items-center space-x-1 px-2 py-2 rounded-sm transition-all duration-300 whitespace-nowrap ${
-      activeTab === to ? 'text-yellow-500 font-bold bg-yellow-500/10' : 'text-zinc-400 hover:text-white hover:bg-white/5'
-    }`}
-  >
-    {Icon && <Icon size={16} />} {/* 图标稍微调小 */}
-    <span className="text-xs font-bold uppercase tracking-tight">{label}</span> {/* 字体变小且紧凑 */}
-  </Link>
-);
+  // --- 导航项组件 (通用) ---
+  const NavItem = ({ to, icon: Icon, label, onClick, isMobile = false }) => {
+    const isActive = activeTab === to;
+    
+    // 移动端样式
+    if (isMobile) {
+        return (
+            <Link 
+                to={to} 
+                onClick={onClick}
+                className={`flex items-center space-x-4 px-4 py-3 rounded-lg transition-all duration-200 ${
+                    isActive 
+                    ? 'bg-yellow-500/10 text-yellow-500 border-l-4 border-yellow-500' 
+                    : 'text-zinc-400 hover:bg-white/5 hover:text-white border-l-4 border-transparent'
+                }`}
+            >
+                {Icon && <Icon size={20} className={isActive ? "animate-pulse" : ""} />}
+                <span className="font-bold text-sm tracking-wide uppercase">{label}</span>
+            </Link>
+        );
+    }
+
+    // 桌面端样式
+    return (
+        <Link 
+            to={to} 
+            className={`relative flex items-center space-x-1.5 px-3 py-2 rounded transition-all duration-300 group ${
+                isActive ? 'text-white' : 'text-zinc-400 hover:text-white'
+            }`}
+        >
+            {/* 背景高亮 */}
+            {isActive && <div className="absolute inset-0 bg-white/5 rounded pointer-events-none"></div>}
+            
+            {Icon && <Icon size={16} className={`transition-colors ${isActive ? 'text-yellow-500' : 'group-hover:text-yellow-500'}`} />}
+            <span className="text-xs font-bold uppercase tracking-tight">{label}</span>
+            
+            {/* 底部指示条 */}
+            <span className={`absolute bottom-0 left-1/2 -translate-x-1/2 h-[2px] bg-yellow-500 transition-all duration-300 ${isActive ? 'w-1/2' : 'w-0 group-hover:w-1/3'}`}></span>
+        </Link>
+    );
+  };
 
   return (
-    <nav className={`fixed top-0 w-full z-50 transition-all duration-300 border-b border-white/10 ${scrolled || isMenuOpen ? 'bg-black/95 backdrop-blur-md py-3 shadow-lg' : 'bg-transparent py-5'}`}>
-      <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
+    <>
+    <nav className={`fixed top-0 w-full z-[60] transition-all duration-500 border-b ${
+        scrolled || isMenuOpen 
+        ? 'bg-zinc-950/90 backdrop-blur-md border-zinc-800 py-2 shadow-2xl' 
+        : 'bg-transparent border-transparent py-4'
+    }`}>
+      <div className="max-w-7xl mx-auto px-4 md:px-6 flex justify-between items-center">
         
-        {/* --- Logo (含彩蛋触发器) --- */}
+        {/* --- Logo 区域 (含长按彩蛋) --- */}
         <div 
-            className="relative select-none cursor-pointer"
-            onMouseDown={startPress}
-            onMouseUp={endPress}
-            onMouseLeave={endPress}
-            onTouchStart={startPress}
-            onTouchEnd={endPress}
-            title="TGUmajor Professional League"
+            className="relative select-none cursor-pointer group"
+            onMouseDown={startPress} onMouseUp={endPress} onMouseLeave={endPress}
+            onTouchStart={startPress} onTouchEnd={endPress}
+            title="Long press for surprise"
         >
-             {/* 进度条圈圈 (当长按时显示) */}
-             {progress > 0 && (
-                 <svg className="absolute top-[-5px] left-[-5px] w-[50px] h-[50px] z-0 pointer-events-none rotate-[-90deg]" viewBox="0 0 36 36">
-                    <path
-                        className="transition-all duration-75 ease-linear"
-                        strokeDasharray={`${progress}, 100`}
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none"
-                        stroke="#eab308"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                    />
-                 </svg>
-             )}
+            {/* 长按进度圈 */}
+            {progress > 0 && (
+                 <div className="absolute inset-0 -m-2 rounded-full border-2 border-yellow-500 border-t-transparent animate-spin" style={{ animationDuration: '0.5s' }}></div>
+            )}
 
-            <Link to="/" className="flex items-center space-x-2 z-50 relative" onClick={() => setIsMenuOpen(false)}>
-                <div className="w-10 h-10 bg-yellow-500 flex items-center justify-center shadow-[0_0_15px_rgba(234,179,8,0.5)]">
-                    {/* 长按时加速旋转 */}
-                    <Crosshair className={`text-black ${progress > 0 ? 'animate-spin duration-75' : 'animate-spin-slow'}`} size={24} />
+            <Link to="/" className="flex items-center gap-3 relative z-10" onClick={() => setIsMenuOpen(false)}>
+                {/* Logo 图标或图片 */}
+                <div className={`w-10 h-10 bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center rounded-lg shadow-lg shadow-yellow-500/20 transition-transform duration-200 ${progress > 0 ? 'scale-90' : 'group-hover:scale-105'}`}>
+                    <img src={logo} alt="Logo" className="w-8 h-8 object-contain opacity-90" onError={(e) => e.target.style.display='none'} />
+                    <Crosshair className="text-black absolute opacity-0 logo-fallback" size={24} /> 
                 </div>
-                <span className="text-xl font-black tracking-tighter text-white italic">TGUmajor</span>
+                <span className="text-xl font-black tracking-tighter text-white italic hidden sm:block">
+                    TGU<span className="text-yellow-500">MAJOR</span>
+                </span>
             </Link>
         </div>
 
+        {/* --- 桌面端导航 (中间) --- */}
+        {/* 使用 hidden lg:flex 隐藏移动端，在大屏显示 */}
+        <div className="hidden lg:flex items-center gap-1 bg-zinc-900/50 p-1.5 rounded-lg border border-white/5 backdrop-blur-sm shadow-inner">
+          <NavItem to="/" icon={Trophy} label="首页" />
+          <NavItem to="/news" icon={FileText} label="资讯" /> {/* [新增] */}
+          <NavItem to="/matches" icon={Map} label="赛程" />
+          <NavItem to="/teams" icon={Users} label="战队" />
+          <NavItem to="/stats" icon={BarChart3} label="数据" />
+          <NavItem to="/pickem" icon={Crosshair} label="竞猜" />
+          <NavItem to="/history" icon={History} label="历届" />
+          <NavItem to="/register" icon={Activity} label="报名" />
+          <NavItem to="/feedback" icon={MessageSquare} label="留言" />
+        </div>
 
-<div className="hidden lg:flex space-x-1 bg-zinc-900/50 p-1 rounded-md border border-white/5 backdrop-blur-sm overflow-x-auto no-scrollbar">
-  <NavItem to="/" icon={Trophy} label="首页" />
-  <NavItem to="/history" icon={History} label="历届" /> {/* 缩短文字 */}
-  <NavItem to="/teams" icon={Users} label="战队" />
-  <NavItem to="/matches" icon={Map} label="赛程" /> {/* 缩短文字 */}
-  <NavItem to="/stats" icon={BarChart3} label="数据" />
-  <NavItem to="/pickem" icon={Crosshair} label="竞猜" /> {/* 确保这个在 */}
-  <NavItem to="/register" icon={Activity} label="报名" />
-  <NavItem to="/feedback" icon={MessageSquare} label="留言" />
-</div>
-
-        {/* Right Side Actions */}
-        <div className="flex items-center gap-4">
+        {/* --- 右侧操作区 --- */}
+        <div className="flex items-center gap-3 md:gap-5">
           {user ? (
-            <div className="hidden md:flex items-center gap-3 pl-4 border-l border-zinc-700">
-              <div className="flex flex-col items-end leading-tight">
-                <span className="text-xs text-zinc-500 uppercase font-bold tracking-wider">Welcome</span>
-                <span className="text-sm text-white font-bold flex items-center">
-                  {user.role === 'admin' && <span className="text-[10px] bg-red-600 text-white px-1 rounded mr-1">GM</span>}
+            <div className="flex items-center gap-3 pl-4 border-l border-zinc-800">
+              {/* 用户信息 (仅桌面显示详细) */}
+              <div className="hidden md:flex flex-col items-end leading-tight">
+                <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Welcome</span>
+                <span className="text-sm text-white font-bold flex items-center gap-1">
+                  {user.role === 'admin' && <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
                   {user.name}
                 </span>
               </div>
               
-              <Link to="/profile" className="bg-zinc-800 p-2 rounded hover:bg-zinc-700 hover:text-cyan-400 transition-colors" title="个人中心">
-                 <User size={18} />
+              <Link to="/profile" className="w-9 h-9 bg-zinc-800 rounded-full flex items-center justify-center text-zinc-400 hover:text-cyan-400 hover:bg-zinc-700 transition-all border border-zinc-700">
+                 <User size={16} />
               </Link>
-
+              
               {user.role === 'admin' && (
-                 <Link to="/admin" className="bg-zinc-800 p-2 rounded hover:bg-zinc-700 hover:text-yellow-500 transition-colors" title="管理后台">
-                   <Settings size={18} />
+                 <Link to="/admin" className="w-9 h-9 bg-zinc-800 rounded-full flex items-center justify-center text-zinc-400 hover:text-yellow-500 hover:bg-zinc-700 transition-all border border-zinc-700" title="管理后台">
+                   <Settings size={16} />
                  </Link>
               )}
-              <button onClick={logout} className="bg-zinc-800 p-2 rounded hover:bg-red-900/50 hover:text-red-500 transition-colors" title="退出">
-                <LogOut size={18} />
+              
+              <button onClick={logout} className="w-9 h-9 bg-zinc-800 rounded-full flex items-center justify-center text-zinc-400 hover:text-red-500 hover:bg-red-900/20 transition-all border border-zinc-700" title="退出">
+                <LogOut size={16} />
               </button>
             </div>
           ) : (
             <button 
-              onClick={onLoginClick} 
-              className="hidden md:flex items-center gap-2 bg-yellow-500 text-black px-5 py-2 font-black text-sm uppercase hover:bg-yellow-400 hover:scale-105 transition-all shadow-[0_0_20px_rgba(234,179,8,0.3)] clip-path-slant"
+              onClick={() => setShowLogin(true)} 
+              className="hidden md:flex items-center gap-2 bg-yellow-500 hover:bg-yellow-400 text-black px-5 py-2.5 rounded font-black text-xs uppercase tracking-wider shadow-lg shadow-yellow-500/20 hover:scale-105 transition-all"
             >
-              <LogIn size={16} /> Login
+              <LogIn size={14} strokeWidth={3} /> Login
             </button>
           )}
 
-          {/* Mobile Menu Toggle */}
+          {/* 移动端菜单按钮 */}
           <button 
-            className="md:hidden text-white p-2 hover:bg-white/10 rounded transition-colors z-50" 
+            className="lg:hidden text-white p-2 hover:bg-white/10 rounded-lg transition-colors active:scale-95" 
             onClick={() => setIsMenuOpen(!isMenuOpen)}
           >
-            {isMenuOpen ? <X size={28} className="text-yellow-500"/> : <Menu size={28} />}
+            {isMenuOpen ? <X size={24} className="text-yellow-500"/> : <Menu size={24} />}
           </button>
         </div>
       </div>
 
-      {/* Mobile Navigation Menu */}
+      {/* --- 移动端下拉菜单 --- */}
+      {/* 增加 backdrop-blur 让背景看起来更高级，防止遮挡内容看不清 */}
       {isMenuOpen && (
-        <div className="md:hidden absolute top-full left-0 w-full bg-zinc-950 border-b border-zinc-800 shadow-2xl animate-in slide-in-from-top-5 fade-in duration-200">
-          <div className="flex flex-col p-4 space-y-2">
-            <NavItem to="/" icon={Trophy} label="首页" onClick={() => setIsMenuOpen(false)} />
-            <NavItem to="/history" icon={History} label="历届锦标赛" onClick={() => setIsMenuOpen(false)} />
-            <NavItem to="/teams" icon={Users} label="参赛战队" onClick={() => setIsMenuOpen(false)} />
-            <NavItem to="/matches" icon={Map} label="近期对局" onClick={() => setIsMenuOpen(false)} />
-            <NavItem to="/stats" icon={BarChart3} label="数据统计" onClick={() => setIsMenuOpen(false)} />
-            <NavItem to="/pickem" icon={Crosshair} label="冠军竞猜" onClick={() => setIsMenuOpen(false)} />
-            <NavItem to="/register" icon={Activity} label="报名中心" onClick={() => setIsMenuOpen(false)} />
-            <NavItem to="/feedback" icon={MessageSquare} label="公测留言" onClick={() => setIsMenuOpen(false)} />
+        <div className="lg:hidden absolute top-full left-0 w-full bg-zinc-950/95 backdrop-blur-xl border-b border-zinc-800 shadow-2xl animate-in slide-in-from-top-2 fade-in duration-200 h-screen md:h-auto overflow-y-auto pb-20">
+          <div className="flex flex-col p-4 space-y-1">
+            <NavItem to="/" icon={Trophy} label="首页 Home" isMobile onClick={() => setIsMenuOpen(false)} />
+            <NavItem to="/news" icon={FileText} label="资讯 News" isMobile onClick={() => setIsMenuOpen(false)} /> {/* [新增] */}
+            <NavItem to="/matches" icon={Map} label="近期赛程 Matches" isMobile onClick={() => setIsMenuOpen(false)} />
+            <NavItem to="/teams" icon={Users} label="参赛战队 Teams" isMobile onClick={() => setIsMenuOpen(false)} />
+            <NavItem to="/stats" icon={BarChart3} label="数据统计 Stats" isMobile onClick={() => setIsMenuOpen(false)} />
+            <NavItem to="/pickem" icon={Crosshair} label="冠军竞猜 Pick'Em" isMobile onClick={() => setIsMenuOpen(false)} />
+            <NavItem to="/register" icon={Activity} label="报名中心 Register" isMobile onClick={() => setIsMenuOpen(false)} />
+            <NavItem to="/history" icon={History} label="历届赛事 History" isMobile onClick={() => setIsMenuOpen(false)} />
+            <NavItem to="/feedback" icon={MessageSquare} label="留言反馈 Feedback" isMobile onClick={() => setIsMenuOpen(false)} />
             
-            <div className="h-px bg-zinc-800 my-2"></div>
+            <div className="h-px bg-zinc-800 my-4"></div>
 
             {user ? (
-              <div className="space-y-2">
-                <div className="px-4 py-2 flex items-center justify-between bg-zinc-900 rounded border border-zinc-800">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-zinc-800 rounded-full flex items-center justify-center text-yellow-500 font-bold border border-zinc-700">
-                      {user.name.charAt(0).toUpperCase()}
+              <div className="bg-zinc-900/50 rounded-xl p-4 border border-zinc-800">
+                 <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center text-black font-bold text-lg">
+                        {user.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <div className="text-xs text-zinc-500">当前用户</div>
-                      <div className="text-sm text-white font-bold">{user.name}</div>
+                        <div className="text-white font-bold">{user.name}</div>
+                        <div className="text-xs text-zinc-500 uppercase">{user.role} Account</div>
                     </div>
-                  </div>
-                  {user.role === 'admin' && <span className="text-[10px] bg-red-600 text-white px-1.5 py-0.5 rounded">ADMIN</span>}
-                </div>
-                
-                <div className="grid grid-cols-2 gap-2">
-                  <Link to="/profile" onClick={() => setIsMenuOpen(false)} className="flex items-center justify-center gap-2 bg-zinc-800 py-3 text-sm font-bold text-zinc-300 hover:text-white hover:bg-zinc-700 rounded">
-                    <User size={16} /> 个人中心
-                  </Link>
-
-                  {user.role === 'admin' && (
-                    <Link to="/admin" onClick={() => setIsMenuOpen(false)} className="flex items-center justify-center gap-2 bg-zinc-800 py-3 text-sm font-bold text-zinc-300 hover:text-white hover:bg-zinc-700 rounded">
-                      <Settings size={16} /> 管理后台
-                    </Link>
-                  )}
-                  <button 
-                    onClick={() => { logout(); setIsMenuOpen(false); }} 
-                    className={`flex items-center justify-center gap-2 bg-zinc-800 py-3 text-sm font-bold text-red-400 hover:bg-red-900/20 rounded col-span-2`}
-                  >
-                    <LogOut size={16} /> 退出登录
-                  </button>
-                </div>
+                 </div>
+                 <div className="grid grid-cols-2 gap-3">
+                    <Link to="/profile" onClick={() => setIsMenuOpen(false)} className="bg-black border border-zinc-700 rounded p-3 text-center text-xs font-bold text-zinc-300 hover:text-white hover:border-zinc-500">个人中心</Link>
+                    {user.role === 'admin' && (
+                        <Link to="/admin" onClick={() => setIsMenuOpen(false)} className="bg-black border border-zinc-700 rounded p-3 text-center text-xs font-bold text-yellow-500 hover:border-yellow-500">管理后台</Link>
+                    )}
+                 </div>
+                 <button 
+                    onClick={() => { logout(); setIsMenuOpen(false); }}
+                    className="w-full mt-3 bg-red-900/20 border border-red-900/50 text-red-500 py-3 rounded text-xs font-bold uppercase hover:bg-red-900/40"
+                 >
+                    退出登录
+                 </button>
               </div>
             ) : (
               <button 
-                onClick={() => { onLoginClick(); setIsMenuOpen(false); }} 
-                className="w-full bg-yellow-500 text-black py-3 font-black uppercase flex items-center justify-center gap-2 hover:bg-yellow-400 transition-colors rounded"
+                onClick={() => { setShowLogin(true); setIsMenuOpen(false); }} 
+                className="w-full bg-yellow-500 text-black py-4 font-black uppercase rounded-lg shadow-lg shadow-yellow-500/10 active:scale-95 transition-transform flex items-center justify-center gap-2"
               >
-                <LogIn size={18} /> 立即登录 / 注册
+                <LogIn size={20}/> 立即登录 / 注册
               </button>
             )}
           </div>
         </div>
       )}
-      
-      {/* 挂载彩蛋弹窗 */}
+
+      {/* 挂载弹窗 */}
       {showDefuse && <DefuseModal onClose={() => setShowDefuse(false)} />}
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
+      
     </nav>
+    <style>{`.logo-fallback { display: none; } img[style*="display: none"] + .logo-fallback { display: block; }`}</style>
+    </>
   );
 }

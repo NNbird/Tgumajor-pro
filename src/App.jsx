@@ -5,6 +5,8 @@ import Navbar from './components/Navbar';
 import AIChatWidget from './components/AIChatWidget';
 import LoginModal from './components/modals/LoginModal';
 import PickEm from './pages/PickEm'; // <--- 添加这一行
+import News from './pages/News';          // [新增]
+import AdminNews from './pages/AdminNews'; // [新增]
 
 // 引入背景组件
 import ParticleBackground from './components/ParticleBackground';
@@ -81,6 +83,8 @@ export default function App() {
                 <Route path="/history" element={<History />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/pickem" element={<PickEm />} />
+                <Route path="/news" element={<News />} />          {/* [新增] 用户新闻页 */}
+                <Route path="/admin/news" element={<AdminNews />} /> {/* [新增] 后台新闻管理 */}
               </Routes>
             </main>
 

@@ -9,6 +9,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model News {
+  id          String   @id @default(uuid())
+  title       String
+  description String   @db.Text // 允许长文本
+  cover       String   // 封面图片 URL
+  date        String   // 显示日期，如 "2025-10-20"
+  link        String   // 跳转链接
+  isPinned    Boolean  @default(false) // 是否置顶
+  pinTime     DateTime? // 置顶时间，用于排序
+  createdAt   DateTime @default(now())
+}
+
 // 1. 赛事表
 model Tournament {
   id        String   @id @default(uuid())
@@ -141,8 +153,7 @@ model PickemEvent {
   teams        PickemTeam[]
   // 此阶段生成的所有对阵 (轮次动态生成)
   matches      PickemMatch[]
-  // 所有用户的预测记录
-  userPicks    UserPick[]
+
   
   createdAt    DateTime @default(now())
 }

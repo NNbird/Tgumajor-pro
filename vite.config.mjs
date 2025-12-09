@@ -14,6 +14,11 @@ export default defineConfig({
         target: 'http://127.0.0.1:3001',
         changeOrigin: true,
         secure: false
+      },
+      // [新增] 代理 /uploads 到后端
+      '/uploads': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
       }
     }
   }, // <--- 这里必须有逗号，分隔 server 和 build

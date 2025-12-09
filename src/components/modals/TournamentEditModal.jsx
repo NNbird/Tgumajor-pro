@@ -49,6 +49,21 @@ export default function TournamentEditModal({ tournament, onClose, onSave }) {
                 <Calendar className="absolute left-3 top-3.5 text-zinc-500" size={16}/>
             </div>
           </div>
+          
+          
+
+            <div className="space-y-2">
+              <label className="text-xs text-zinc-500 uppercase font-bold">报名开关状态</label>
+              <select 
+                value={data.registrationStatus || 'NOT_STARTED'} 
+                onChange={e => setData({...data, registrationStatus: e.target.value})}
+                className="w-full bg-black border border-zinc-700 text-white p-3 rounded focus:border-yellow-500 outline-none appearance-none"
+              >
+                <option value="NOT_STARTED">🔴 未开始报名 (Not Started)</option>
+                <option value="OPEN">🟢 正在报名 (Open)</option>
+                <option value="CLOSED">⚫ 报名已截止 (Closed)</option>
+              </select>
+            </div>
 
           <div className="bg-zinc-950 p-4 border border-zinc-800 rounded">
              <div className="flex justify-between items-center mb-3">

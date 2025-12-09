@@ -14,7 +14,7 @@ if (typeof global.File === 'undefined') {
 
 import express from 'express';
 import cors from 'cors';
-import fs from 'fs/promises';
+//import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { INITIAL_DATA } from './initialData.js';
@@ -22,6 +22,10 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import multer from 'multer'; // [新增]
+import fs from 'fs';         // [新增]
+
+
 
 // --- 2. 基础配置 ---
 const PORT = 3001;
@@ -37,6 +41,27 @@ const DASHSCOPE_API_KEY = "sk-e0247e35350f42eb9cc00423f3ebfc44";
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+// [新增] 1. 配置静态文件服务 (用于访问上传的图片)
+// 图片将可以通过 http://localhost:3001/uploads/xxx.jpg 访问
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+app.use('/uploads', express.static(UPLOADS_DIR));
+
+// [新增] 2. 配置 Multer 存储策略
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, UPLOADS_DIR);
+  },
+  filename: function (req, file, cb) {
+    // 生成唯一文件名: 时间戳-随机数.扩展名
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage: storage });
 
 // --- [修改] 密码强度校验 (3/4 规则) ---
 function checkPasswordStrength(pwd) {
@@ -1666,6 +1691,95 @@ app.post('/api/pickem/update-teams', async (req, res) => {
         console.error("Update Teams Error:", e);
         res.status(500).json({ error: '更新失败: ' + e.message });
     }
+});
+
+// ==========================================
+// 📰 新闻系统 API
+// ==========================================
+
+// 1. 获取所有新闻
+app.get('/api/news', async (req, res) => {
+  try {
+    const news = await prisma.news.findMany({
+      orderBy: [
+        { isPinned: 'desc' }, // 先按是否置顶排序
+        { pinTime: 'desc' },  // 置顶的按置顶时间倒序
+        { date: 'desc' }      // 非置顶的按日期倒序
+      ]
+    });
+    res.json({ success: true, news });
+  } catch (e) {
+    res.status(500).json({ error: '获取新闻失败' });
+  }
+});
+
+// [修改] 2. 保存新闻接口 (支持文件上传)
+// 使用 upload.single('coverImage') 中间件处理名为 coverImage 的文件字段
+app.post('/api/news/save', upload.single('coverImage'), async (req, res) => {
+  try {
+    // req.body 中包含普通文本字段
+    const { id, title, description, date, link, isPinned } = req.body;
+    let cover = req.body.cover; // 如果没有新文件，沿用旧的路径
+
+    // 如果有新文件上传，更新 cover 路径
+    if (req.file) {
+        cover = `/uploads/${req.file.filename}`;
+    }
+
+    const dataToSave = {
+        title,
+        description,
+        cover: cover || '', // 确保不为 null
+        date,
+        link,
+        isPinned: isPinned === 'true' || isPinned === true // FormData 传过来可能是字符串
+    };
+
+    if (id && id !== 'null' && id !== '') {
+      // 更新
+      const updated = await prisma.news.update({
+        where: { id },
+        data: dataToSave
+      });
+      res.json({ success: true, news: updated });
+    } else {
+      // 新建
+      const created = await prisma.news.create({
+        data: dataToSave
+      });
+      res.json({ success: true, news: created });
+    }
+  } catch (e) {
+    console.error("Save news error:", e);
+    res.status(500).json({ error: '保存新闻失败' });
+  }
+});
+
+// 3. 删除新闻
+app.delete('/api/news/:id', async (req, res) => {
+  try {
+    await prisma.news.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: '删除失败' });
+  }
+});
+
+// 4. 切换置顶状态
+app.post('/api/news/pin', async (req, res) => {
+  const { id, isPinned } = req.body;
+  try {
+    await prisma.news.update({
+      where: { id },
+      data: { 
+        isPinned,
+        pinTime: isPinned ? new Date() : null // 置顶时更新时间戳，确保最新置顶的在最前
+      }
+    });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: '操作失败' });
+  }
 });
 
 // --- 8. 启动 ---

@@ -4,8 +4,9 @@ import { useLeague } from '../context/LeagueContext';
 import { 
   LayoutTemplate, Calendar, Shield, Users, Plus, Edit, Trash2, Upload, Settings, 
   FileSpreadsheet, AlertCircle, XSquare, CheckSquare, MessageSquare, ArrowUp, ArrowDown, Download, ArrowLeft, ArrowRight,
-  History, Trophy, Flag, Bell, Type, Bold, Send, Wand2 // <--- 在这里加上 Trophy
+  History, Trophy, Flag, Bell, Type, Bold, Send, Wand2, FileText 
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import StatusBadge from '../components/StatusBadge';
 import TeamEditModal from '../components/modals/TeamEditModal';
 import MatchEditModal from '../components/modals/MatchEditModal';
@@ -60,7 +61,28 @@ export default function Admin() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importForm, setImportForm] = useState({ url: '', acw_tc: '', match_id: '' });
   const [isImporting, setIsImporting] = useState(false);
+    
+    
+// 在 Admin() 函数内部顶部添加：
+const [adminTeamTourFilter, setAdminTeamTourFilter] = useState('');
 
+// 初始化筛选器的 Effect
+React.useEffect(() => {
+    if(tournaments.length > 0 && !adminTeamTourFilter) {
+        setAdminTeamTourFilter(tournaments[0].id);
+    }
+}, [tournaments]);
+
+// 辅助方法：处理导入
+const handleImportTeam = () => {
+    if (!adminTeamTourFilter) return alert("请先选择一个赛事归属！");
+    setEditingTeam({
+        id: null,
+        tournamentId: adminTeamTourFilter,
+        name: '', tag: '', contact: '', status: 'approved',
+        members: Array(5).fill({ role: 'Rifler', score: '' })
+    });
+};
 
 
   // --- 逻辑区域：比赛排序 ---
@@ -405,7 +427,21 @@ const handleDeleteGroupedPlayer = (player) => {
         <div className="flex items-center text-white font-black text-xl">
           <Settings className="mr-3 text-red-600" /> 后台管理系统
         </div>
-        <div className="flex gap-2 overflow-x-auto">
+        
+        {/* [修改] 将新闻管理放入同一个 flex 容器，样式保持高度一致 */}
+        <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">
+           {/* 1. 独立的新闻管理按钮 (看起来像 Tab，实际是 Link) */}
+           <Link 
+             to="/admin/news" 
+             className="flex items-center gap-2 px-4 py-2 rounded-sm transition-all duration-200 whitespace-nowrap text-zinc-400 hover:bg-zinc-800 hover:text-white border border-transparent hover:border-zinc-700"
+           >
+              <FileText size={18}/> 新闻管理
+           </Link>
+           
+           {/* 分割线 (可选) */}
+           <div className="w-px h-6 bg-zinc-800 self-center mx-1"></div>
+
+           {/* 2. 原有的 Tabs */}
            {[
              { id: 'site', label: '全局设置', icon: LayoutTemplate },
              { id: 'tournaments', label: '赛事管理', icon: Flag },
@@ -734,59 +770,95 @@ const handleDeleteGroupedPlayer = (player) => {
         )}
 
         {/* --- Tab 3: 战队审批 --- */}
-        {/* --- Tab 3: 战队审批 (修改版) --- */}
         {adminTab === 'teams' && (
-             <div className="overflow-x-auto animate-in slide-in-from-bottom-2">
-               <table className="w-full text-left text-sm text-zinc-300 border-collapse">
-                 <thead className="bg-black text-zinc-500 uppercase text-xs tracking-wider">
-                    <tr>
-                        <th className="p-4 border-b border-zinc-800">Team</th>
-                        <th className="p-4 border-b border-zinc-800">Status</th>
-                        <th className="p-4 border-b border-zinc-800 text-right">Actions</th>
-                    </tr>
-                 </thead>
-                 <tbody className="divide-y divide-zinc-800">
-                   {teams.map(t => (
-                     <tr key={t.id} className="hover:bg-zinc-800/30 transition-colors group">
-                       <td className="p-4 font-bold text-white cursor-pointer hover:text-cyan-400" onClick={() => setEditingTeam(t)}>{t.name}</td>
-                       <td className="p-4"><StatusBadge status={t.status} reason={t.rejectReason}/></td>
-                       <td className="p-4 text-right">
-                         <div className="flex justify-end items-center gap-2">
-                            <button onClick={() => setEditingTeam(t)} className="text-zinc-400 hover:text-cyan-400 p-1" title="编辑"><Edit size={16}/></button>
-                            
-                            {/* [修复] 审批按钮逻辑修改：
-                                1. 只要不是 approved 状态，就显示“通过”按钮。
-                                2. 只要不是 rejected 状态，就显示“拒绝”按钮（用于撤回审批）。
-                            */}
-                            {t.status !== 'approved' && (
-                                <button onClick={() => handleStatusChange(t.id, 'approved')} className="text-green-500 hover:text-green-400 p-1" title="通过"><CheckSquare size={16}/></button>
-                            )}
-                            {t.status !== 'rejected' && (
-                                <button onClick={() => setRejectingId(t.id)} className="text-red-500 hover:text-red-400 p-1" title={t.status === 'approved' ? "撤回审批 (改为拒绝)" : "驳回"}><XSquare size={16}/></button>
-                            )}
-                            
-                            <span className="w-px h-4 bg-zinc-700 mx-1"></span>
-                            <button onClick={() => handleDeleteTeam(t)} className="text-zinc-600 hover:text-red-600 p-1 transition-colors" title="删除"><Trash2 size={16}/></button>
-                         </div>
-                       </td>
-                     </tr>
-                   ))}
-                 </tbody>
-               </table>
-               {editingTeam && <TeamEditModal team={editingTeam} onClose={() => setEditingTeam(null)} onSave={(u) => { adminUpdateTeam(u); setEditingTeam(null); }} />}
+             <div className="space-y-4 animate-in slide-in-from-bottom-2">
                
-               {rejectingId && (
-                  <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 animate-in zoom-in-95">
-                    <div className="bg-zinc-900 p-6 border border-red-600 w-96 shadow-2xl">
-                      <h4 className="text-white font-bold mb-4">拒绝 / 撤回理由</h4>
-                      <textarea className="w-full bg-black text-white p-3 border border-zinc-700 mb-4" value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="请输入理由..."/>
-                      <div className="flex justify-end gap-3">
-                          <button onClick={() => setRejectingId(null)} className="text-zinc-400">取消</button>
-                          <button onClick={() => handleStatusChange(rejectingId, 'rejected', rejectReason)} className="bg-red-600 text-white px-4 py-2 rounded">确认拒绝</button>
+               {/* 顶部工具栏：筛选 + 导入 */}
+               <div className="bg-zinc-950 p-4 border border-zinc-800 rounded flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                      <span className="text-zinc-500 text-xs font-bold uppercase">当前查看赛事:</span>
+                      <select 
+                          value={adminTeamTourFilter} 
+                          onChange={e => setAdminTeamTourFilter(e.target.value)}
+                          className="bg-black border border-zinc-700 text-white text-sm p-2 rounded outline-none focus:border-yellow-500"
+                      >
+                          {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                      {/* 显示当前状态 */}
+                      <span className={`text-[10px] px-2 py-0.5 rounded border ${
+                          tournaments.find(t=>t.id===adminTeamTourFilter)?.registrationStatus === 'OPEN' 
+                          ? 'bg-green-900/30 text-green-400 border-green-800' 
+                          : 'bg-zinc-800 text-zinc-500 border-zinc-700'
+                      }`}>
+                          {tournaments.find(t=>t.id===adminTeamTourFilter)?.registrationStatus || 'NOT_STARTED'}
+                      </span>
+                  </div>
+                  
+                  <button 
+                      onClick={handleImportTeam}
+                      className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-sm text-sm font-bold flex items-center shadow-lg transition-all"
+                  >
+                      <Download size={16} className="mr-2"/> 管理员导入战队
+                  </button>
+               </div>
+
+               {/* 列表区域 */}
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left text-sm text-zinc-300 border-collapse">
+                   <thead className="bg-black text-zinc-500 uppercase text-xs tracking-wider">
+                      <tr>
+                          <th className="p-4 border-b border-zinc-800">Team</th>
+                          <th className="p-4 border-b border-zinc-800">Status</th>
+                          <th className="p-4 border-b border-zinc-800 text-right">Actions</th>
+                      </tr>
+                   </thead>
+                   <tbody className="divide-y divide-zinc-800">
+                     {/* 过滤战队：只显示 adminTeamTourFilter 选中的 */}
+                     {teams.filter(t => !adminTeamTourFilter || t.tournamentId === adminTeamTourFilter).length === 0 && (
+                         <tr><td colSpan="3" className="p-8 text-center text-zinc-500">该赛事暂无报名战队</td></tr>
+                     )}
+                     
+                     {teams
+                        .filter(t => !adminTeamTourFilter || t.tournamentId === adminTeamTourFilter)
+                        .map(t => (
+                       <tr key={t.id} className="hover:bg-zinc-800/30 transition-colors group">
+                         <td className="p-4 font-bold text-white cursor-pointer hover:text-cyan-400" onClick={() => setEditingTeam(t)}>{t.name}</td>
+                         <td className="p-4"><StatusBadge status={t.status} reason={t.rejectReason}/></td>
+                         <td className="p-4 text-right">
+                           <div className="flex justify-end items-center gap-2">
+                              <button onClick={() => setEditingTeam(t)} className="text-zinc-400 hover:text-cyan-400 p-1" title="编辑"><Edit size={16}/></button>
+                              
+                              {t.status !== 'approved' && (
+                                  <button onClick={() => handleStatusChange(t.id, 'approved')} className="text-green-500 hover:text-green-400 p-1" title="通过"><CheckSquare size={16}/></button>
+                              )}
+                              {t.status !== 'rejected' && (
+                                  <button onClick={() => setRejectingId(t.id)} className="text-red-500 hover:text-red-400 p-1" title={t.status === 'approved' ? "撤回审批 (改为拒绝)" : "驳回"}><XSquare size={16}/></button>
+                              )}
+                              
+                              <span className="w-px h-4 bg-zinc-700 mx-1"></span>
+                              <button onClick={() => handleDeleteTeam(t)} className="text-zinc-600 hover:text-red-600 p-1 transition-colors" title="删除"><Trash2 size={16}/></button>
+                           </div>
+                         </td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+                 
+                 {editingTeam && <TeamEditModal team={editingTeam} onClose={() => setEditingTeam(null)} onSave={(u) => { adminUpdateTeam(u); setEditingTeam(null); }} />}
+                 
+                 {rejectingId && (
+                    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 animate-in zoom-in-95">
+                      <div className="bg-zinc-900 p-6 border border-red-600 w-96 shadow-2xl">
+                        <h4 className="text-white font-bold mb-4">拒绝 / 撤回理由</h4>
+                        <textarea className="w-full bg-black text-white p-3 border border-zinc-700 mb-4" value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="请输入理由..."/>
+                        <div className="flex justify-end gap-3">
+                            <button onClick={() => setRejectingId(null)} className="text-zinc-400">取消</button>
+                            <button onClick={() => handleStatusChange(rejectingId, 'rejected', rejectReason)} className="bg-red-600 text-white px-4 py-2 rounded">确认拒绝</button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-               )}
+                 )}
+               </div>
              </div>
         )}
 
