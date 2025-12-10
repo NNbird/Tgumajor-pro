@@ -165,16 +165,12 @@ app.post('/api/sync', async (req, res) => {
           await tx.playerStat.deleteMany();
           if (data.length > 0) await tx.playerStat.createMany({ data });
           break;
-       // [核心修复] 赛事同步逻辑优化
+        // ✅ [修复] 使用 Upsert 逻辑，防止外键冲突和关联丢失
         case 'tournaments':
-          // ❌ 绝对不能使用 deleteMany()！这会导致关联的战队/散人数据因外键约束而报错或丢失。
-          // ✅ 改为遍历数据，使用 upsert (有则更新，无则新增)
-          
           for (const t of data) {
             const { stages, id, ...rest } = t;
 
-            // 1. 更新或创建赛事本体
-            // rest 中包含了 registrationStatus，这样更新就能保存下来了
+            // 1. 安全更新或创建赛事 (保留 registrationStatus)
             await tx.tournament.upsert({
               where: { id: id },
               update: { ...rest }, 
@@ -182,11 +178,8 @@ app.post('/api/sync', async (req, res) => {
             });
 
             // 2. 同步阶段 (Stage)
-            // Stage 是赛事的子结构，且设置了 onDelete: Cascade，所以可以重建
-            // 先删除该赛事下的旧阶段
             await tx.stage.deleteMany({ where: { tournamentId: id } });
             
-            // 再创建新阶段
             if (stages && stages.length > 0) {
                 await tx.stage.createMany({
                     data: stages.map(s => ({
@@ -198,6 +191,7 @@ app.post('/api/sync', async (req, res) => {
             }
           }
           break;
+
           
           // [新增] 战队同步逻辑
         case 'teams':
@@ -647,6 +641,53 @@ app.post('/api/pickem/init', async (req, res) => {
     }
 });
 
+// [修复] 获取指定赛事的竞猜视图 (包含阶段信息、战队、比赛及用户作业)
+app.get('/api/pickem/tournament-view', async (req, res) => {
+    const { tournamentId, userId } = req.query;
+    if (!tournamentId) return res.json({ success: false, error: '缺少赛事ID' });
+
+    try {
+        // 1. 查询该赛事下的所有竞猜 Event
+        // 必须 include teams 和 matches，因为前端 Sidebar 的任务进度计算依赖这些数据
+        const events = await prisma.pickemEvent.findMany({
+            where: { tournamentId: tournamentId },
+            orderBy: { createdAt: 'asc' }, // 或者按 stageId 排序
+            include: {
+                teams: true,
+                matches: true
+            }
+        });
+
+        // 2. 数据组装：补充 Stage 名称 + 当前用户的 Pick 状态
+        const enrichedEvents = await Promise.all(events.map(async (evt) => {
+            // 获取阶段名称
+            let stageName = 'Unknown Stage';
+            if (evt.stageId) {
+                const stage = await prisma.stage.findUnique({ where: { id: evt.stageId } });
+                if (stage) stageName = stage.name;
+            }
+
+            // 获取当前用户的预测 (用于前端计算 "完成度" 和 "正确数" 任务)
+            let userPick = null;
+            if (userId) {
+                userPick = await prisma.userPick.findFirst({
+                    where: { userId: userId, eventId: evt.id }
+                });
+            }
+
+            return {
+                ...evt,
+                stageName,
+                userPick
+            };
+        }));
+
+        res.json({ success: true, events: enrichedEvents });
+    } catch (e) {
+        console.error("Tournament View Error:", e);
+        res.status(500).json({ error: '获取数据失败' });
+    }
+});
 
 // [新增] 获取所有竞猜阶段列表 (用于前端 Tab 切换)
 app.get('/api/pickem/stages', async (req, res) => {
@@ -1012,37 +1053,7 @@ app.post('/api/pickem/event/visibility', async (req, res) => {
     } catch (e) { res.status(500).json({ error: 'Error' }); }
 });
 
-// [新增] 12. 获取某赛事下的所有竞猜数据 (用户端全景视图)
-// 用于：生成 Tab 栏、计算左侧任务进度
-app.get('/api/pickem/tournament-view', async (req, res) => {
-    const { tournamentId, userId } = req.query;
-    try {
-        // 1. 查该赛事下所有 PickemEvents
-        const events = await prisma.pickemEvent.findMany({
-            where: { tournamentId },
-            orderBy: { createdAt: 'asc' }, // 按创建顺序（即阶段顺序）
-            include: {
-                userPicks: userId ? { where: { userId } } : false, // 查当前用户的 Pick
-                matches: true, // <--- [新增] 必须加上这一行，前端才能算对了几场
-                teams: true // <--- 🟢 [核心修改] 加上这一行！
-            }
-        });
 
-        // 2. 补充阶段名称
-        const stages = await prisma.stage.findMany({ where: { tournamentId } });
-        
-        const result = events.map(evt => {
-            const stage = stages.find(s => s.id === evt.stageId);
-            return {
-                ...evt,
-                stageName: stage?.name || 'Unknown Stage',
-                userPick: evt.userPicks?.[0] || null // 取出用户的 pick
-            };
-        });
-
-        res.json({ success: true, events: result });
-    } catch (e) { res.status(500).json({ error: '获取视图失败' }); }
-});
 
 // 辅助函数：安全解析JSON数组 (如果代码中已有可忽略)
 function parseJsonArray(data) {
@@ -1820,6 +1831,45 @@ app.post('/api/news/pin', async (req, res) => {
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: '操作失败' });
+  }
+});
+
+// 🚑 数据救援接口：修复竞猜活动不显示的问题
+app.get('/api/debug/fix-pickem', async (req, res) => {
+  try {
+    // 1. 获取所有赛事
+    const tournaments = await prisma.tournament.findMany({ include: { stages: true } });
+    if (tournaments.length === 0) return res.json({ msg: "没有赛事" });
+
+    // 默认把孤儿数据绑定到第一个赛事
+    const targetTour = tournaments[0];
+    const targetStage = targetTour.stages[0]; // 默认绑定到第一个阶段
+
+    if (!targetStage) return res.json({ msg: "赛事没有阶段，无法绑定" });
+
+    // 2. 查找所有“孤儿”竞猜 (关联的 tournamentId 不存在的)
+    const allEvents = await prisma.pickemEvent.findMany();
+    let fixedCount = 0;
+
+    for (const evt of allEvents) {
+      const parent = tournaments.find(t => t.id === evt.tournamentId);
+      if (!parent) {
+        // 发现孤儿！强行通过“阶段 ID”来认亲，或者强制指派给第一个赛事
+        // 策略：直接指派给当前最新的赛事
+        await prisma.pickemEvent.update({
+          where: { id: evt.id },
+          data: {
+            tournamentId: targetTour.id,
+            stageId: targetStage.id 
+          }
+        });
+        fixedCount++;
+      }
+    }
+    
+    res.json({ success: true, fixed: fixedCount, targetTour: targetTour.name });
+  } catch (e) {
+    res.json({ error: e.message });
   }
 });
 
