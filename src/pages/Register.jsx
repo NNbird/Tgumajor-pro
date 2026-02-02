@@ -1,15 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { useLeague } from '../context/LeagueContext';
-import { Lock, Trash2, Plus, Save, AlertCircle, CheckCircle, Info, User, Hash, School, BookOpen } from 'lucide-react';
+import { Lock, Trash2, Plus, Save, AlertCircle, CheckCircle, Info, User, Hash, School, BookOpen, X, ShieldAlert } from 'lucide-react';
 
 export default function Register() {
   const { user, teams, saveTeam, deleteTeam, freeAgents, saveFreeAgent, deleteFreeAgent, tournaments } = useLeague();
   const [activeTab, setActiveTab] = useState('team'); 
   
-  // --- 新增：赛事选择状态 ---
+  // --- 赛事选择状态 ---
   const [selectedTourId, setSelectedTourId] = useState('');
+
+  // --- 管理员选人状态 ---
+  const [selectedAgent, setSelectedAgent] = useState(null);
+
+  // [关键修改] 更加宽容的管理员判定逻辑
+  // 只要满足以下任一条件，就视为管理员：
+  // 1. user.isAdmin 为 true
+  // 2. user.role 等于 'admin'
+  // 3. 用户名是 'admin' (作为兜底)
+  const isAdmin = user && (user.isAdmin === true || user.role === 'admin' || user.username === 'admin');
+
+  // [调试] 打开浏览器的控制台(F12) -> Console，看看这里打印了什么
+  useEffect(() => {
+    if (user) {
+        console.log("当前登录用户:", user);
+        console.log("是否被判定为管理员:", isAdmin);
+    }
+  }, [user, isAdmin]);
   
-  // 初始化默认赛事 (优先选 OPEN 的，否则选第一个)
+  // 初始化默认赛事
   useEffect(() => {
     if (tournaments.length > 0 && !selectedTourId) {
       const openTour = tournaments.find(t => t.registrationStatus === 'OPEN');
@@ -17,27 +35,25 @@ export default function Register() {
     }
   }, [tournaments]);
 
-  // 获取当前赛事对象及状态
   const currentTournament = tournaments.find(t => t.id === selectedTourId);
   const isRegistrationOpen = currentTournament?.registrationStatus === 'OPEN';
 
-  // --- 核心逻辑修改：查找当前用户在 *当前选中赛事* 下的报名信息 ---
+  // --- 核心逻辑 ---
   const myTeam = user ? teams.find(t => t.ownerId === user.id && t.tournamentId === selectedTourId) : null;
   const myAgent = user ? freeAgents.find(f => f.ownerId === user.id && f.tournamentId === selectedTourId) : null;
 
-  // --- Team Form State ---
+  // --- Forms State ---
   const [teamForm, setTeamForm] = useState({
     name: '', tag: '', contact: '', digitalId: '',
     members: Array(5).fill({ id: '', steamId: '', class: '', studentId: '', score: '', role: 'Rifler' })
   });
 
-  // --- Free Agent Form State ---
   const [faForm, setFaForm] = useState({ 
     name: '', steamId: '', class: '', studentId: '',
     score: '', role: 'Rifler', contact: '' 
   });
 
-  // 数据回填：当切换赛事或数据加载完成时，回填表单
+  // 数据回填
   useEffect(() => {
     if (myTeam) {
       setTeamForm({
@@ -55,13 +71,12 @@ export default function Register() {
         }))
       });
     } else {
-      // 如果当前赛事没报名，重置表单
       setTeamForm({
         name: '', tag: '', contact: '', digitalId: '',
         members: Array(5).fill({ id: '', steamId: '', class: '', studentId: '', score: '', role: 'Rifler' })
       });
     }
-  }, [myTeam, selectedTourId]); // 监听 selectedTourId
+  }, [myTeam, selectedTourId]);
 
   useEffect(() => {
     if (myAgent) {
@@ -77,7 +92,7 @@ export default function Register() {
     } else {
       setFaForm({ name: '', steamId: '', class: '', studentId: '', score: '', role: 'Rifler', contact: '' });
     }
-  }, [myAgent, selectedTourId]); // 监听 selectedTourId
+  }, [myAgent, selectedTourId]);
 
   if (!user) return (
     <div className="text-center py-24 space-y-6 animate-in fade-in">
@@ -91,10 +106,9 @@ export default function Register() {
     </div>
   );
 
-  // --- Helpers ---
   const isTeamLocked = myTeam?.status === 'approved';
 
-  // Team Handlers
+  // --- Handlers ---
   const updateMember = (idx, field, val) => {
     if (isTeamLocked) return;
     const newMembers = [...teamForm.members];
@@ -109,12 +123,10 @@ export default function Register() {
     e.preventDefault();
     if (isTeamLocked) return;
     if (!selectedTourId) return alert("请先选择赛事！");
-
     const avg = (teamForm.members.reduce((a, b) => a + (Number(b.score) || 0), 0) / teamForm.members.length).toFixed(0);
-    
     saveTeam({
         id: myTeam?.id,
-        tournamentId: selectedTourId, // <--- 关键：绑定当前选中的赛事ID
+        tournamentId: selectedTourId,
         name: teamForm.name,
         tag: teamForm.tag.toUpperCase(),
         digitalId: teamForm.digitalId,
@@ -133,14 +145,12 @@ export default function Register() {
     }
   };
 
-  // FA Handlers
   const handleFaSubmit = (e) => {
     e.preventDefault();
     if (!selectedTourId) return alert("请先选择赛事！");
-
     saveFreeAgent({
         id: myAgent?.id,
-        tournamentId: selectedTourId, // <--- 关键：绑定当前选中的赛事ID
+        tournamentId: selectedTourId,
         ...faForm
     });
     alert(myAgent ? '个人信息已更新！' : '个人信息已发布！');
@@ -156,7 +166,7 @@ export default function Register() {
   return (
     <div className="space-y-8 animate-in slide-in-from-bottom-4 pb-20">
       
-      {/* --- 新增：顶部赛事选择器 --- */}
+      {/* 赛事选择 */}
       <div className="flex flex-col items-center gap-4 mb-8 pt-8">
         <h2 className="text-2xl font-black text-white uppercase">选择报名赛事</h2>
         <div className="relative z-20 w-full max-w-md">
@@ -172,22 +182,18 @@ export default function Register() {
              ))}
            </select>
         </div>
-        
-        {/* 状态提示 */}
         {!isRegistrationOpen && (
           <div className="bg-red-900/30 border border-red-500/50 text-red-200 px-6 py-4 rounded-lg flex items-center max-w-xl text-center mt-4">
             <AlertCircle className="mr-3 flex-shrink-0" />
             <div>
                <div className="font-bold text-lg">该赛事当前无法报名</div>
-               <div className="text-sm opacity-80">
-                 状态：{currentTournament?.registrationStatus === 'CLOSED' ? '报名已截止' : '尚未开放报名'}
-               </div>
+               <div className="text-sm opacity-80">状态：{currentTournament?.registrationStatus === 'CLOSED' ? '报名已截止' : '尚未开放报名'}</div>
             </div>
           </div>
         )}
       </div>
 
-      {/* --- 内容区域：只有报名开启时显示 --- */}
+      {/* 内容区域 */}
       {isRegistrationOpen && (
       <>
       <div className="flex justify-center space-x-4 mb-8">
@@ -197,12 +203,10 @@ export default function Register() {
 
       {activeTab === 'team' ? (
         <div className="max-w-5xl mx-auto bg-zinc-900/80 border border-zinc-700 p-8 relative overflow-hidden rounded-sm shadow-xl">
-            {/* 提示当前赛事 */}
+            {/* 战队部分代码保持不变 */}
             <div className="text-center mb-6 text-zinc-500 text-xs uppercase tracking-widest border-b border-zinc-800 pb-4">
-               正在报名: <span className="text-yellow-500 font-bold ml-2">{currentTournament?.name}</span>
+                正在报名: <span className="text-yellow-500 font-bold ml-2">{currentTournament?.name}</span>
             </div>
-
-            {/* 状态提示栏 */}
             {myTeam && (
                 <div className={`mb-8 p-4 border-l-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${
                     myTeam.status === 'approved' ? 'bg-green-900/20 border-green-500' : 
@@ -231,13 +235,10 @@ export default function Register() {
                     )}
                 </div>
             )}
-
             <h2 className="text-3xl font-black text-white mb-8 flex items-center">
                 <span className="text-yellow-500 mr-3">//</span> {myTeam ? '管理我的战队' : '创建新战队'}
             </h2>
-            
             <form onSubmit={handleTeamSubmit} className={`space-y-8 ${isTeamLocked ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-                {/* 战队基本信息 */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="space-y-2">
                         <label className="text-xs text-zinc-500 uppercase font-bold">战队全称</label>
@@ -259,8 +260,6 @@ export default function Register() {
                         <input required disabled={isTeamLocked} placeholder="QQ / WeChat" className="w-full bg-black border border-zinc-700 p-3 text-white focus:border-yellow-500 outline-none disabled:bg-zinc-900 transition-colors font-mono" value={teamForm.contact} onChange={e => setTeamForm({...teamForm, contact: e.target.value})} />
                     </div>
                 </div>
-
-                {/* 队员列表 */}
                 <div className="space-y-3 bg-zinc-950/50 p-4 border border-zinc-800 rounded">
                     <div className="flex justify-between items-center text-zinc-400 text-xs uppercase tracking-wider pb-2 border-b border-zinc-800 mb-2">
                         <span>战队成员 ({teamForm.members.length})</span>
@@ -269,7 +268,6 @@ export default function Register() {
                             {teamForm.members.length < 7 && !isTeamLocked && <button type="button" onClick={addMember} className="text-green-500 hover:text-green-400 hover:bg-green-900/20 p-1 rounded"><Plus size={16}/></button>}
                         </div>
                     </div>
-                    
                     <div className="space-y-4">
                         {teamForm.members.map((m, i) => (
                             <div key={i} className="bg-zinc-900 border border-zinc-800 p-3 rounded-sm relative group hover:border-zinc-700 transition-colors">
@@ -312,7 +310,6 @@ export default function Register() {
                         ))}
                     </div>
                 </div>
-                
                 {!isTeamLocked && (
                     <div className="pt-4 border-t border-zinc-800">
                         <div className="flex items-start gap-2 text-zinc-500 text-xs mb-4 bg-zinc-900 p-3 rounded">
@@ -334,7 +331,6 @@ export default function Register() {
                     <h3 className="text-xl font-black text-white text-cyan-400 uppercase">{myAgent ? '编辑我的信息' : '我是散人 (LFT)'}</h3>
                     {myAgent && <button onClick={handleFaDelete} className="text-red-500 hover:text-red-400 bg-red-900/20 p-2 rounded"><Trash2 size={16}/></button>}
                 </div>
-                
                 <form onSubmit={handleFaSubmit} className="space-y-4">
                     <div className="space-y-1">
                         <label className="text-xs text-zinc-500 uppercase font-bold">游戏 ID</label>
@@ -368,23 +364,39 @@ export default function Register() {
                             <option>Rifler</option><option>AWP</option><option>IGL</option><option>Entry</option><option>Support</option>
                         </select>
                     </div>
-                    
                     <button className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 uppercase flex items-center justify-center shadow-[0_4px_0_rgb(8,145,178)] active:translate-y-[2px] active:shadow-none mt-6 rounded-sm transition-all">
                         {myAgent ? '更新个人信息' : '发布求组信息'}
                     </button>
                 </form>
             </div>
             
-            {/* 右侧：散人列表 (也需要过滤) */}
+            {/* 右侧：散人列表 (支持筛选 + 管理员查看) */}
             <div className="lg:col-span-2">
                 <h3 className="text-xl font-black text-white mb-4 uppercase flex items-center">
                     <User className="mr-2 text-cyan-500"/> 寻找队伍的选手
                 </h3>
+
+                {/* [修改] 使用新的 isAdmin 变量 */}
+                {isAdmin && (
+                  <div className="mb-4 bg-yellow-900/20 border border-yellow-700/50 p-3 rounded flex items-center text-xs text-yellow-500">
+                    <ShieldAlert size={16} className="mr-2" />
+                    管理员模式：点击选手卡片可查看 SteamID、学号等详细隐私信息。
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {freeAgents
-                      .filter(a => a.tournamentId === selectedTourId) // 只显示当前赛事的散人
+                      .filter(a => a.tournamentId === selectedTourId) 
                       .map(agent => (
-                        <div key={agent.id} className={`bg-zinc-900 p-4 border-l-2 flex justify-between items-center group transition-colors ${user && agent.ownerId === user.id ? 'border-yellow-500 bg-zinc-800' : 'border-cyan-500 hover:bg-zinc-800'}`}>
+                        <div 
+                          key={agent.id} 
+                          // [修改] 使用新的 isAdmin 变量
+                          onClick={() => isAdmin && setSelectedAgent(agent)}
+                          className={`bg-zinc-900 p-4 border-l-2 flex justify-between items-center group transition-colors 
+                            ${user && agent.ownerId === user.id ? 'border-yellow-500 bg-zinc-800' : 'border-cyan-500'}
+                            ${isAdmin ? 'cursor-pointer hover:bg-zinc-800 hover:border-white' : 'hover:bg-zinc-800'}
+                          `}
+                        >
                             <div>
                             <div className="font-bold text-white text-lg flex items-center">
                                 {agent.name} 
@@ -411,6 +423,56 @@ export default function Register() {
       )}
       </>
       )}
+
+      {/* 管理员查看散人详情 Modal */}
+      {selectedAgent && (
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-zinc-900 border border-zinc-700 w-full max-w-md rounded-lg p-6 relative shadow-2xl">
+            <button onClick={() => setSelectedAgent(null)} className="absolute right-4 top-4 text-zinc-500 hover:text-white"><X size={20}/></button>
+            <div className="mb-6 border-b border-zinc-800 pb-4">
+              <h3 className="text-xl font-black text-white flex items-center">
+                <span className="text-yellow-500 mr-2">[ADMIN]</span> 选手档案
+              </h3>
+            </div>
+            <div className="space-y-4">
+              <div className="bg-black/50 p-4 rounded border border-zinc-800">
+                <div className="text-xs text-zinc-500 uppercase font-bold mb-1">基本信息</div>
+                <div className="text-white font-bold text-lg">{selectedAgent.name}</div>
+                <div className="flex gap-2 mt-2">
+                    <span className="text-xs bg-zinc-800 px-2 py-1 rounded text-zinc-300">{selectedAgent.role}</span>
+                    <span className="text-xs bg-cyan-900/30 px-2 py-1 rounded text-cyan-400 font-mono">{selectedAgent.score} ELO</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                    <label className="text-[10px] text-zinc-500 uppercase font-bold">班级</label>
+                    <div className="bg-zinc-950 border border-zinc-800 p-2 rounded text-sm text-white">{selectedAgent.class || '未填写'}</div>
+                </div>
+                <div className="space-y-1">
+                    <label className="text-[10px] text-zinc-500 uppercase font-bold">学号</label>
+                    <div className="bg-zinc-950 border border-zinc-800 p-2 rounded text-sm text-white font-mono">{selectedAgent.studentId || '未填写'}</div>
+                </div>
+              </div>
+              <div className="space-y-1">
+                  <label className="text-[10px] text-zinc-500 uppercase font-bold">Steam ID (64位)</label>
+                  <div className="bg-zinc-950 border border-zinc-800 p-2 rounded text-sm text-yellow-500 font-mono select-all">
+                      {selectedAgent.steamId || '未填写'}
+                  </div>
+              </div>
+              <div className="space-y-1">
+                  <label className="text-[10px] text-zinc-500 uppercase font-bold">联系方式</label>
+                  <div className="bg-zinc-950 border border-zinc-800 p-2 rounded text-sm text-white font-mono select-all">
+                      {selectedAgent.contact}
+                  </div>
+              </div>
+            </div>
+            <div className="mt-6 text-center">
+              <button onClick={() => setSelectedAgent(null)} className="text-sm text-zinc-500 hover:text-white underline">关闭详情</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

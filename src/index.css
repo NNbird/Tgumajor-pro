@@ -2,23 +2,59 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =========================================
+   1. 新增：赛博黑金风格核心工具类 (Design System)
+   ========================================= */
+@layer utilities {
+  /* 高级暗色背景：深蓝灰向纯黑的渐变，带噪点质感 */
+  .bg-cyber-gradient {
+    background: 
+      radial-gradient(circle at 50% 0%, rgba(30, 32, 40, 1) 0%, rgba(9, 9, 11, 1) 60%),
+      url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+    background-blend-mode: overlay;
+    background-color: #09090b; /* 兜底 */
+  }
 
-/* 确保根元素透明，透出底下的 Canvas */
+  /* 黄金微光效果 (用于卡片/按钮) */
+  .glow-gold {
+    box-shadow: 0 0 20px -5px rgba(234, 179, 8, 0.3);
+  }
+
+  /* 隐藏滚动条但保留功能 */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+}
+
+/* =========================================
+   2. 全局基础样式 (Base Setup)
+   ========================================= */
+
+/* 确保根元素透明，透出底下的 Canvas 或背景 */
 #root {
   background-color: transparent;
+  min-height: 100vh;
 }
 
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+body {
+  /* 使用 Tailwind 颜色变量，更柔和的黑 */
+  @apply bg-zinc-950 text-zinc-100 antialiased;
+  background-color: #09090b; 
+  overflow-x: hidden;
 }
 
-/* 自定义滚动条样式 */
+/* =========================================
+   3. 滚动条样式 (Scrollbars)
+   ========================================= */
+
+/* 自定义滚动条 (用于侧边栏或内容区域) */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
   background: #18181b; 
@@ -31,11 +67,11 @@
   background: #52525b; 
 }
 
-body {
-  background-color: #000;
-  color: #fff;
-}
-/* 1. 赛博朋克网格背景 */
+/* =========================================
+   4. 背景与装饰特效 (Backgrounds & Effects)
+   ========================================= */
+
+/* 旧版赛博朋克网格背景 (保留以备用) */
 .bg-grid-pattern {
   background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
@@ -43,7 +79,7 @@ body {
   mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
 }
 
-/* 2. 卡片悬停时的流光边框效果 */
+/* 卡片悬停时的流光边框效果 */
 @keyframes border-flow {
   0%, 100% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
@@ -53,7 +89,7 @@ body {
   animation: border-flow 3s ease infinite;
 }
 
-/* 3. 文字/按钮扫光特效 */
+/* 文字/按钮扫光特效 */
 @keyframes shine {
   from { mask-position: 150%; -webkit-mask-position: 150%; }
   to { mask-position: -50%; -webkit-mask-position: -50%; }
@@ -74,10 +110,10 @@ body {
   );
   transform: skewX(-20deg);
   transform-origin: bottom left;
-  animation: shine 3s infinite; /* 3秒扫光一次 */
+  animation: shine 3s infinite;
 }
 
-/* 4. 呼吸光晕 */
+/* 呼吸光晕 (通用) */
 @keyframes pulse-glow {
   0%, 100% { box-shadow: 0 0 10px rgba(234, 179, 8, 0.2); }
   50% { box-shadow: 0 0 25px rgba(234, 179, 8, 0.6); }
@@ -86,9 +122,11 @@ body {
   animation: pulse-glow 2s infinite;
 }
 
-/* --- Operation Defuse Styles --- */
+/* =========================================
+   5. 拆弹模式专用特效 (Operation Defuse Styles)
+   ========================================= */
 
-/* 1. 红色警报呼吸 */
+/* 红色警报呼吸 */
 @keyframes alarm-pulse {
   0%, 100% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.2); border-color: rgba(220, 38, 38, 0.5); }
   50% { box-shadow: 0 0 50px rgba(220, 38, 38, 0.8); border-color: rgba(220, 38, 38, 1); }
@@ -97,7 +135,7 @@ body {
   animation: alarm-pulse 1.5s infinite;
 }
 
-/* 2. 疯狂抖动 (用于敲击战队名) */
+/* 疯狂抖动 (用于C4 Modal敲击战队名) */
 @keyframes shake-hard {
   0% { transform: translate(1px, 1px) rotate(0deg); }
   10% { transform: translate(-1px, -2px) rotate(-1deg); }
@@ -115,7 +153,7 @@ body {
   animation: shake-hard 0.5s;
 }
 
-/* 3. 进度条加载 (Logo长按) */
+/* 进度条加载 (Logo长按) */
 .circular-chart {
   display: block;
   margin: 0 auto;
@@ -137,7 +175,7 @@ body {
   0% { stroke-dasharray: 0 100; }
 }
 
-/* 4. 故障文字效果 (可选) */
+/* 故障文字效果 */
 .glitch-text {
   text-shadow: 2px 0 #ff0000, -2px 0 #0000ff;
 }

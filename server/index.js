@@ -108,30 +108,66 @@ app.post('/api/check-name', async (req, res) => {
 app.get('/api/db', async (req, res) => {
   try {
     const [
-      matches, tournaments, players, announcements, historyTournaments, users, feedbacks, siteConfigList,
-      teams, freeAgents // [新增]
+      // [修改] 移除 orderBy: { id: 'desc' }，改为不指定排序 (默认按存储顺序/插入顺序)
+      // 这样就能保留您在前端自定义拖拽后的顺序了
+      matches, 
+      tournaments, 
+      players, 
+      announcements, 
+      historyTournaments, 
+      users, 
+      feedbacks, 
+      siteConfigList,
+      teams, 
+      freeAgents 
     ] = await Promise.all([
-      prisma.match.findMany({ orderBy: { id: 'desc' } }), 
+      // 🔴 关键修改：去掉 orderBy，尊重 Sync 时的顺序
+      prisma.match.findMany({ orderBy: { createdAt: 'desc' } }),
+      
       prisma.tournament.findMany({ include: { stages: true } }),
       prisma.playerStat.findMany({ orderBy: { rating: 'desc' } }),
       prisma.announcement.findMany({ orderBy: { date: 'desc' } }),
-      // ✅ [核心修复] 强制按年份倒序，这是保证列表稳定的唯一方法
       prisma.historyTournament.findMany({ orderBy: { id: 'asc' } }),
       prisma.user.findMany(),
       prisma.feedback.findMany({ orderBy: { id: 'desc' } }),
       prisma.siteConfig.findMany(),
-      prisma.team.findMany(),      // [新增] 读取战队
-      prisma.freeAgent.findMany()  // [新增] 读取散人
+      prisma.team.findMany(),      
+      prisma.freeAgent.findMany()  
     ]);
+
+    // ==========================================
+    // ⚡️ [优化] 赛程排序逻辑
+    // 规则：1. 赛事越新越靠前; 2. 同一赛事内，比赛越新越靠前
+    // ==========================================
+    
+    // 1. 构建赛事速查表 (Map)，为了能通过 tournamentId 快速拿到赛事信息
+    const tourMap = new Map(tournaments.map(t => [t.id, t]));
+
+    // 2. 辅助函数：解析日期 (兼容 "2025.01.01" 或 "2025-01-01" 等格式)
+    const getTourStartTime = (dateRange) => {
+        if (!dateRange) return 0;
+        // 尝试提取第一段日期
+        const match = dateRange.match(/(\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2})/);
+        if (match) {
+            // 将 . 替换为 - 以便 Date 解析
+            return new Date(match[0].replace(/\./g, '-')).getTime();
+        }
+        return 0; // 无法解析则排最后
+    };
+
+    
+
+    // ==========================================
 
     const siteConfig = siteConfigList[0] || {};
 
     const formattedPlayers = players.map(p => ({ ...p, stageId: p.stageId || 'all' }));
+    // 注意：这里使用的是排序后的 matches
     const formattedMatches = matches.map(m => ({ ...m, stageId: m.stageId || 'all' }));
 
     res.json({
       siteConfig,
-      matches: formattedMatches,
+      matches: formattedMatches, // 返回排序好的数据
       tournaments,
       playerStats: formattedPlayers,
       announcements,
@@ -159,11 +195,29 @@ app.post('/api/sync', async (req, res) => {
       switch (collection) {
         case 'matches':
           await tx.match.deleteMany();
-          if (data.length > 0) await tx.match.createMany({ data });
+          if (data.length > 0) {
+            // 获取当前时间作为基准
+            const baseTime = Date.now();
+
+            const validData = data.map((item, index) => ({
+              ...item,
+              id: String(item.id),
+              // 🔥【核心黑科技】根据数组顺序重写 createdAt
+              // index=0 (第一个) -> 时间是 baseTime
+              // index=1 (第二个) -> 时间是 baseTime - 1000ms
+              // 这样在按时间倒序排列时，排在前面的数据时间最新，自然就排在前面
+              createdAt: new Date(baseTime - index * 1000) 
+            }));
+            
+            await tx.match.createMany({ data: validData });
+          }
           break;
         case 'playerStats':
           await tx.playerStat.deleteMany();
-          if (data.length > 0) await tx.playerStat.createMany({ data });
+          if (data.length > 0) {
+             const validStats = data.map(p => ({ ...p, id: String(p.id) }));
+             await tx.playerStat.createMany({ data: validStats });
+          }
           break;
         // ✅ [修复] 使用 Upsert 逻辑，防止外键冲突和关联丢失
         case 'tournaments':
