@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Edit, X, Tv, Map as MapIcon, Save, Trash2, CheckSquare, Square, Search, Trophy } from 'lucide-react';
+import { Edit, X, Tv, Map as MapIcon, Save, Trash2, CheckSquare, Square, Search, Trophy, Plus } from 'lucide-react';
 import { useLeague } from '../../context/LeagueContext'; 
 
 // 🗺️ CS2 地图池配置
@@ -17,20 +17,19 @@ const CS2_MAPS = [
     { id: 'Office', name: 'Office (办公室)' }
 ];
 
-// --- 🌟 提取到外部的子组件 (修复无法输入的问题) ---
+// --- 子组件：TeamInput ---
 const TeamInput = ({ label, value, onChange, isConfirmed, onConfirmChange, allTeams }) => {
     const [showSuggestions, setShowSuggestions] = useState(false);
     const wrapperRef = useRef(null);
 
-    // 模糊匹配逻辑：输入内容不为空，且在列表中包含
-    const suggestions = value && allTeams.length > 0
-      ? allTeams.filter(t => t.toLowerCase().includes(value.toLowerCase()) && t !== value)
+    // 安全获取建议列表
+    const safeTeams = Array.isArray(allTeams) ? allTeams : [];
+    const suggestions = value && safeTeams.length > 0
+      ? safeTeams.filter(t => t && t.toLowerCase().includes(value.toLowerCase()) && t !== value)
       : [];
 
-    // 精确匹配检测：用于显示勾选框
-    const exactMatch = allTeams.includes(value);
+    const exactMatch = safeTeams.includes(value);
 
-    // 点击外部关闭下拉
     useEffect(() => {
       const handleClickOutside = (event) => {
         if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
@@ -43,13 +42,12 @@ const TeamInput = ({ label, value, onChange, isConfirmed, onConfirmChange, allTe
 
     const handleSelect = (teamName) => {
       onChange(teamName); 
-      onConfirmChange(true); // 从库里选的，自动勾选
+      onConfirmChange(true);
       setShowSuggestions(false);
     };
 
     return (
       <div className="relative space-y-1" ref={wrapperRef}>
-        {/* Label 行：包含 标题 和 勾选框 */}
         <label className="text-xs text-zinc-500 uppercase font-bold flex justify-between items-center ml-1">
           {label}
           {exactMatch && (
@@ -67,12 +65,11 @@ const TeamInput = ({ label, value, onChange, isConfirmed, onConfirmChange, allTe
         <div className="relative">
           <input
             type="text"
-            value={value || ''} // 确保不为 undefined
+            value={value || ''}
             onChange={(e) => {
                 const val = e.target.value;
                 onChange(val);
-                // 如果修改后名字对不上了，自动取消勾选
-                if (!allTeams.includes(val)) {
+                if (!safeTeams.includes(val)) {
                     onConfirmChange(false);
                 }
             }}
@@ -85,16 +82,13 @@ const TeamInput = ({ label, value, onChange, isConfirmed, onConfirmChange, allTe
             placeholder="输入战队名..."
             autoComplete="off"
           />
-          
-          {/* 右侧图标指示器 */}
           <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-600">
              {isConfirmed ? <Trophy size={16} className="text-green-500 animate-in zoom-in"/> : <Search size={16}/>}
           </div>
 
-          {/* 下拉建议框 */}
           {showSuggestions && suggestions.length > 0 && (
             <div className="absolute z-50 w-full bg-zinc-900 border border-zinc-700 mt-1 rounded-lg shadow-xl max-h-48 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 left-0">
-                {suggestions.map(team => (
+                {(suggestions || []).map(team => (
                     <div 
                         key={team}
                         onClick={() => handleSelect(team)}
@@ -112,16 +106,16 @@ const TeamInput = ({ label, value, onChange, isConfirmed, onConfirmChange, allTe
 };
 
 export default function MatchEditModal({ match, onClose, onSave, onDelete }) {
-  const { tournaments } = useLeague();
+  // 1. 获取 context 数据 (并提供默认空数组防止崩溃)
+  const { tournaments = [] } = useLeague();
   const [allTeams, setAllTeams] = useState([]);
 
-  // 1. 获取全局战队库
   useEffect(() => {
     const fetchTeams = async () => {
       try {
         const res = await axios.get('/api/teams/unique');
         if (res.data.success) {
-          setAllTeams(res.data.teams);
+          setAllTeams(res.data.teams || []);
         }
       } catch (e) {
         console.error("加载战队列表失败", e);
@@ -130,8 +124,7 @@ export default function MatchEditModal({ match, onClose, onSave, onDelete }) {
     fetchTeams();
   }, []);
 
-  // 2. 初始化表单数据
-  // 使用函数式初始化，确保只在首次渲染时计算，且处理好空值
+  // 2. 初始化表单数据 (核心修复：强制清理 maps 数据)
   const [data, setData] = useState(() => {
     const defaultData = {
         teamA: '', teamB: '', scoreA: 0, scoreB: 0,
@@ -139,19 +132,27 @@ export default function MatchEditModal({ match, onClose, onSave, onDelete }) {
         tournamentId: '', stageId: '', maps: []
     };
     
-    // 合并传入的 match 数据
     const initialData = { ...defaultData, ...match };
     
-    // 补充关联状态 (如果 match 已有名字且在库里，但没传 isRegistered 字段，尝试自动推断)
-    // 注意：这里 allTeams 初始是空的，所以 effect 会在 allTeams 加载后再次检查
+    // ⚠️⚠️⚠️ 强制修复 maps 为数组，防止数据库里的 null 覆盖默认值
+    let safeMaps = [];
+    if (Array.isArray(initialData.maps)) {
+        safeMaps = initialData.maps;
+    } else if (typeof initialData.maps === 'string') {
+        try { safeMaps = JSON.parse(initialData.maps); } catch(e) { safeMaps = []; }
+    }
+    // 如果上面处理完还是非数组（比如 null），强制设为空数组
+    if (!Array.isArray(safeMaps)) safeMaps = [];
+
     return {
         ...initialData,
+        maps: safeMaps, // 覆盖回去
         isTeamARegistered: match.id ? (match.isTeamARegistered || false) : false,
         isTeamBRegistered: match.id ? (match.isTeamBRegistered || false) : false,
     };
   });
 
-  // 当 allTeams 加载完成后，如果是编辑模式，尝试自动匹配勾选状态
+  // 自动推断注册状态
   useEffect(() => {
     if (allTeams.length > 0 && match.id) {
         setData(prev => ({
@@ -162,32 +163,40 @@ export default function MatchEditModal({ match, onClose, onSave, onDelete }) {
     }
   }, [allTeams, match.id]);
 
-  // 当选择赛事变化时，重置阶段
+  // 赛事变化时重置阶段
   useEffect(() => {
     if (data.tournamentId) {
-        const t = tournaments.find(t => t.id === data.tournamentId);
-        if (t && !t.stages.find(s => s.id === data.stageId)) {
+        const t = (tournaments || []).find(t => String(t.id) === String(data.tournamentId));
+        if (t && Array.isArray(t.stages) && !t.stages.find(s => s.id === data.stageId)) {
             setData(prev => ({ ...prev, stageId: '' }));
         }
     }
   }, [data.tournamentId, tournaments]);
 
-  const currentStages = tournaments.find(t => t.id === data.tournamentId)?.stages || [];
+  // 安全获取当前阶段列表
+  const currentTour = (tournaments || []).find(t => String(t.id) === String(data.tournamentId));
+  const currentStages = currentTour && Array.isArray(currentTour.stages) ? currentTour.stages : [];
 
   const updateMap = (idx, field, val) => {
-    const newMaps = [...data.maps];
-    newMaps[idx] = { ...newMaps[idx], [field]: val };
-    setData({ ...data, maps: newMaps });
+    const newMaps = [...(data.maps || [])];
+    if(newMaps[idx]) {
+        newMaps[idx] = { ...newMaps[idx], [field]: val };
+        setData({ ...data, maps: newMaps });
+    }
   };
 
-  const addMap = () => setData({ ...data, maps: [...data.maps, { name: '', score: '', winner: 'Pending' }] });
-  const removeMap = (idx) => setData({ ...data, maps: data.maps.filter((_, i) => i !== idx) });
+  const addMap = () => setData({ ...data, maps: [...(data.maps || []), { name: '', score: '', winner: 'Pending' }] });
+  
+  const removeMap = (idx) => {
+      const newMaps = (data.maps || []).filter((_, i) => i !== idx);
+      setData({ ...data, maps: newMaps });
+  };
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-in fade-in">
       <div className="bg-zinc-900 border border-zinc-700 w-full max-w-2xl rounded-2xl flex flex-col max-h-[90vh] shadow-2xl overflow-hidden">
         
-        {/* 顶部标题栏 */}
+        {/* Header */}
         <div className="p-5 border-b border-zinc-800 flex justify-between items-center bg-zinc-950/50">
           <h3 className="text-lg md:text-xl font-black text-white flex items-center gap-2">
             <div className="bg-yellow-500/10 p-2 rounded-lg text-yellow-500"><Edit size={20}/></div>
@@ -196,27 +205,34 @@ export default function MatchEditModal({ match, onClose, onSave, onDelete }) {
           <button onClick={onClose} className="p-2 rounded-full hover:bg-zinc-800 text-zinc-500 hover:text-white transition-colors"><X size={20}/></button>
         </div>
 
+        {/* Body */}
         <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
           
-          {/* 1. 赛事归属选择 */}
+          {/* 1. 赛事归属 (安全渲染) */}
           <div className="grid grid-cols-2 gap-4 bg-zinc-950/50 p-4 border border-zinc-800/60 rounded-xl">
               <div>
                 <label className="text-xs text-zinc-500 uppercase font-bold block mb-1.5 ml-1">归属赛事 (Tournament)</label>
                 <select value={data.tournamentId || ''} onChange={e => setData({...data, tournamentId: e.target.value})} className="w-full bg-black border border-zinc-700 text-white p-2.5 rounded-lg text-sm focus:border-yellow-500 outline-none transition-colors">
                   <option value="">-- 未分配 --</option>
-                  {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  {/* 🛡️ 保护：(tournaments || []).map */}
+                  {(tournaments || []).map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label className="text-xs text-zinc-500 uppercase font-bold block mb-1.5 ml-1">所属阶段 (Stage)</label>
                 <select value={data.stageId || ''} onChange={e => setData({...data, stageId: e.target.value})} className="w-full bg-black border border-zinc-700 text-white p-2.5 rounded-lg text-sm focus:border-yellow-500 outline-none transition-colors" disabled={!data.tournamentId}>
                   <option value="">-- 默认/通用 --</option>
-                  {currentStages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  {/* 🛡️ 保护：(currentStages || []).map */}
+                  {(currentStages || []).map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
                 </select>
               </div>
           </div>
 
-          {/* 2. 核心比分与战队选择区域 (使用提取后的组件) */}
+          {/* 2. 比分与战队 */}
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-3">
               <TeamInput 
@@ -243,7 +259,7 @@ export default function MatchEditModal({ match, onClose, onSave, onDelete }) {
             </div>
           </div>
 
-          {/* 3. 状态与地图设置 */}
+          {/* 3. 基础设置 */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="text-xs text-zinc-500 uppercase font-bold block mb-1.5 ml-1">Status</label>
@@ -278,7 +294,7 @@ export default function MatchEditModal({ match, onClose, onSave, onDelete }) {
               </div>
           </div>
 
-          {/* 4. 直播流设置 */}
+          {/* 4. 直播流 */}
           {data.status === 'Live' && (
             <div className="bg-zinc-950 p-4 border border-purple-500/30 rounded-xl animate-in fade-in">
                 <label className="text-xs text-purple-400 uppercase font-bold flex items-center mb-2 gap-2">
@@ -288,28 +304,29 @@ export default function MatchEditModal({ match, onClose, onSave, onDelete }) {
             </div>
           )}
 
-          {/* 5. 地图详情 (Maps Detail) */}
+          {/* 5. 地图小分 (安全渲染) */}
           <div className="pt-2">
             <div className="flex justify-between items-center mb-3">
               <span className="text-sm font-bold text-white flex items-center gap-2"><MapIcon size={14} className="text-zinc-500"/> Map Details (小分)</span>
-              <button onClick={addMap} className="text-xs bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 hover:text-white text-zinc-400 px-3 py-1.5 rounded-md transition-colors">+ Add Map</button>
+              <button onClick={addMap} className="text-xs bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 hover:text-white text-zinc-400 px-3 py-1.5 rounded-md transition-colors flex items-center gap-1"><Plus size={12}/> Add Map</button>
             </div>
             <div className="space-y-2">
-                {data.maps.map((m, i) => (
+                {/* 🛡️ 保护：(data.maps || []).map */}
+                {(data.maps || []).map((m, i) => (
                   <div key={i} className="flex gap-2">
-                    <input placeholder="Map Name" value={m.name} onChange={e => updateMap(i, 'name', e.target.value)} className="flex-1 bg-black border border-zinc-700 text-white p-2 text-sm rounded-md focus:border-zinc-500 outline-none"/>
-                    <input placeholder="Score" value={m.score} onChange={e => updateMap(i, 'score', e.target.value)} className="w-24 bg-black border border-zinc-700 text-white p-2 text-sm rounded-md text-center focus:border-zinc-500 outline-none"/>
-                    <input placeholder="Winner" value={m.winner} onChange={e => updateMap(i, 'winner', e.target.value)} className="w-32 bg-black border border-zinc-700 text-white p-2 text-sm rounded-md text-center focus:border-zinc-500 outline-none"/>
+                    <input placeholder="Map Name" value={m.name || ''} onChange={e => updateMap(i, 'name', e.target.value)} className="flex-1 bg-black border border-zinc-700 text-white p-2 text-sm rounded-md focus:border-zinc-500 outline-none"/>
+                    <input placeholder="Score" value={m.score || ''} onChange={e => updateMap(i, 'score', e.target.value)} className="w-24 bg-black border border-zinc-700 text-white p-2 text-sm rounded-md text-center focus:border-zinc-500 outline-none"/>
+                    <input placeholder="Winner" value={m.winner || ''} onChange={e => updateMap(i, 'winner', e.target.value)} className="w-32 bg-black border border-zinc-700 text-white p-2 text-sm rounded-md text-center focus:border-zinc-500 outline-none"/>
                     <button onClick={() => removeMap(i)} className="text-zinc-600 hover:text-red-500 transition-colors px-1"><Trash2 size={16}/></button>
                   </div>
                 ))}
-                {data.maps.length === 0 && <div className="text-center text-zinc-700 text-xs py-2 border border-dashed border-zinc-800 rounded">暂无小分数据</div>}
+                {(!data.maps || data.maps.length === 0) && <div className="text-center text-zinc-700 text-xs py-2 border border-dashed border-zinc-800 rounded">暂无小分数据</div>}
             </div>
           </div>
 
         </div>
 
-        {/* 底部按钮栏 */}
+        {/* Footer */}
         <div className="p-5 border-t border-zinc-800 flex justify-between items-center bg-zinc-950/50">
           <div>
               {match.id && onDelete && (
