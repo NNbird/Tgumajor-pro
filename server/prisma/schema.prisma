@@ -166,6 +166,7 @@ model User {
   name        String   @unique // 用户昵称 (用于显示，可以修改)
   email       String?  @unique // 邮箱 (可选)
   forceUpdate Boolean  @default(false)
+  teamMemberships TeamMembership[] // [新增] 关联字段
 }
 
 
@@ -257,4 +258,43 @@ model UserPick {
   correctCount Int         @default(0)
   
   updatedAt    DateTime    @updatedAt
+}
+
+// [New Model] 战队成员关系表
+model TeamMembership {
+  id        Int      @id @default(autoincrement())
+  userId    String   // 注意：User表的ID是String(uuid)，这里必须对应
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  teamName  String   // 绑定战队名称 (视为唯一标识)
+  role      String   // 'CAPTAIN', 'MEMBER', 'MANAGER', 'COACH'
+  status    String   @default("PENDING") // 'PENDING', 'APPROVED', 'REJECTED'
+  
+  createdAt DateTime @default(now())
+
+  // 联合唯一索引：确保一个用户在同一个战队只有一条记录 (或者全局唯一，看业务需求，这里建议全局唯一)
+  @@unique([userId]) // 强制用户同一时间只能加入一个战队
+}
+
+// [Modified] 全局战队主档
+model EsportsTeam {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique 
+  logo        String?  
+  description String?  
+  isVerified  Boolean  @default(true) 
+  
+  // --- 🤖 吉祥物工坊字段 (Mascot Workshop) ---
+  mascotPrompt     String?  @db.Text // 用户的原始创意
+  mascot2DUrl      String?  // 本地 2D 设计图路径 (e.g., /3Dmodels/Navi/date.png)
+  mascot3DUrl      String?  // 本地 3D 模型路径 (e.g., /3Dmodels/Navi/date.glb)
+  mascotStatus     String   @default("NONE") // NONE, GEN_2D, WAITING_CONFIRM, GEN_3D, COMPLETED, FAILED
+  mascotTaskId     String?  // Meshy 任务ID
+  
+  // --- 💰 额度控制 ---
+  creditsTextToImage Int    @default(3) // 剩余设计次数 (默认3)
+  creditsImageTo3D   Int    @default(1) // 剩余建模次数 (默认1)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

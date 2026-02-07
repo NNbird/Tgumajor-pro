@@ -14,6 +14,7 @@ import HistoryEditModal from '../components/modals/HistoryEditModal'; // 引入 
 import PlayerDetailModal from '../components/modals/PlayerDetailModal';
 import TournamentEditModal from '../components/modals/TournamentEditModal';
 import { processFile } from '../utils/dataParser';
+import TeamManager from '../components/admin/TeamManager';
 
 export default function Admin() {
   const { 
@@ -447,6 +448,7 @@ const handleDeleteGroupedPlayer = (player) => {
              { id: 'tournaments', label: '赛事管理', icon: Flag },
              { id: 'matches', label: '赛程管理', icon: Calendar },
              { id: 'teams', label: '战队审批', icon: Shield },
+             { id: 'team_db', label: '战队管理', icon: Shield }, // 修改 ID 为 team_db，Icon 改为组件引用
              { id: 'players', label: '选手数据', icon: Users },
              { id: 'feedback', label: '留言管理', icon: MessageSquare },
              { id: 'history', label: '历届锦标赛', icon: History },
@@ -861,7 +863,13 @@ const handleDeleteGroupedPlayer = (player) => {
                </div>
              </div>
         )}
-
+    
+        {/* --- [新插入] Tab 3.5: 战队管理 (Team DB) --- */}
+        {adminTab === 'team_db' && (
+            <div className="animate-in slide-in-from-bottom-2">
+                <TeamManager />
+            </div>
+        )}
          {/* --- Tab 4: 选手数据 (布局优化版) --- */}
          {adminTab === 'players' && (
            // [修改1] 给容器设定固定高度 h-[800px] (或 calc(100vh-200px))，确保左右对齐

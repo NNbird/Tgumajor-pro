@@ -15,6 +15,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false
       },
+      // 2. [新增] 静态资源(图片/模型)转发到后端
+      '/3Dmodels': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
       // [新增] 代理 /uploads 到后端
       '/uploads': {
         target: 'http://localhost:3001',

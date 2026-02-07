@@ -22,6 +22,7 @@ import Feedback from './pages/Feedback';
 import History from './pages/History';
 import Profile from './pages/Profile';
 import Maintenance from './pages/Maintenance';
+import MascotCreator from './pages/MascotCreator';
 
 // 安全卫士组件
 function SecurityGuard({ children }) {
@@ -82,6 +83,7 @@ export default function App() {
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/history" element={<History />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="/mascot" element={<MascotCreator />} />
                 <Route path="/pickem" element={<PickEm />} />
                 <Route path="/news" element={<News />} />          {/* [新增] 用户新闻页 */}
                 <Route path="/admin/news" element={<AdminNews />} /> {/* [新增] 后台新闻管理 */}

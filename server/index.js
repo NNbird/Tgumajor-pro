@@ -16,7 +16,7 @@ import express from 'express';
 import cors from 'cors';
 // [修改] 同时引入异步 fs (默认) 和同步方法 (解构)
 import fs from 'fs/promises'; 
-import { existsSync, mkdirSync } from 'fs';
+import { createWriteStream, existsSync, mkdirSync } from 'fs'; // 引入标准fs方法
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { INITIAL_DATA } from './initialData.js';
@@ -25,6 +25,10 @@ import * as cheerio from 'cheerio';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import multer from 'multer'; // [新增]
+import { pipeline } from 'stream';
+import { promisify } from 'util';
+
+const streamPipeline = promisify(pipeline);
 
 
 
@@ -35,6 +39,7 @@ const prisma = new PrismaClient();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_FILE = path.join(__dirname, 'db.json');
 
+
 // ==========================================
 // 🔑 阿里云百炼 API 配置区域
 const DASHSCOPE_API_KEY = "sk-e0247e35350f42eb9cc00423f3ebfc44"; 
@@ -42,6 +47,7 @@ const DASHSCOPE_API_KEY = "sk-e0247e35350f42eb9cc00423f3ebfc44";
 
 const app = express();
 app.use(cors());
+app.use(express.static('public')); // 👈 这一步至关重要！否则生成的图片 Meshy 读不到
 app.use(express.json({ limit: '50mb' }));
 
 // [新增] 1. 配置静态文件服务 (用于访问上传的图片)
@@ -101,6 +107,47 @@ app.post('/api/check-name', async (req, res) => {
     }
   } catch (e) {
     res.status(500).json({ error: '检测失败' });
+  }
+});
+
+// [新增] 获取比赛列表 (带吉祥物数据增强版)
+// 用于赛程页面单独调用，减轻 /api/db 负担并注入 3D 模型链接
+app.get('/api/matches', async (req, res) => {
+  try {
+    // 1. 获取所有比赛 (按时间倒序)
+    const matches = await prisma.match.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // 2. 获取所有已拥有吉祥物的战队信息
+    // 只查 COMPLETED 状态且有 URL 的
+    const teamsWithMascot = await prisma.esportsTeam.findMany({
+      where: { 
+        mascotStatus: 'COMPLETED',
+        mascot3DUrl: { not: null }
+      },
+      select: { name: true, mascot3DUrl: true }
+    });
+
+    // 3. 将吉祥物 URL 注入到比赛数据中
+    const enrichedMatches = matches.map(match => {
+      // 尝试匹配 Team A
+      const teamAInfo = teamsWithMascot.find(t => t.name === match.teamA);
+      // 尝试匹配 Team B
+      const teamBInfo = teamsWithMascot.find(t => t.name === match.teamB);
+
+      return {
+        ...match,
+        // 如果战队库里有这个名字且有模型，就返回 URL
+        teamAMascotUrl: teamAInfo ? teamAInfo.mascot3DUrl : null,
+        teamBMascotUrl: teamBInfo ? teamBInfo.mascot3DUrl : null,
+      };
+    });
+
+    res.json({ success: true, matches: enrichedMatches });
+  } catch (e) {
+    console.error("Fetch Matches Error:", e);
+    res.status(500).json({ error: '获取比赛列表失败' });
   }
 });
 
@@ -196,16 +243,31 @@ app.post('/api/sync', async (req, res) => {
         case 'matches':
           await tx.match.deleteMany();
           if (data.length > 0) {
-            // 获取当前时间作为基准
             const baseTime = Date.now();
 
             const validData = data.map((item, index) => ({
-              ...item,
-              id: String(item.id),
-              // 🔥【核心黑科技】根据数组顺序重写 createdAt
-              // index=0 (第一个) -> 时间是 baseTime
-              // index=1 (第二个) -> 时间是 baseTime - 1000ms
-              // 这样在按时间倒序排列时，排在前面的数据时间最新，自然就排在前面
+              // 1. ID 必须是 String
+              id: String(item.id), 
+              
+              teamA: item.teamA,
+              teamB: item.teamB,
+              scoreA: parseInt(item.scoreA) || 0,
+              scoreB: parseInt(item.scoreB) || 0,
+              status: item.status,
+              bo: parseInt(item.bo) || 1,
+              streamUrl: item.streamUrl || '',
+              currentMap: item.currentMap || '',
+              
+              // 2. ⚠️ 关键修复：关联 ID 必须保持 String，不要 parseInt！
+              // 如果是 null/undefined/""，则设为 null
+              tournamentId: item.tournamentId ? String(item.tournamentId) : null,
+              stageId: item.stageId ? String(item.stageId) : null,
+              
+              // 3. 地图小分 (Schema 中是 Json?)
+              // 如果你的 Schema 定义了 maps Json?，这里需要确保它是一个对象或数组，不是字符串
+              // 如果前端传的是 JSON 字符串，需要 JSON.parse；如果是对象，直接存
+              maps: typeof item.maps === 'string' ? JSON.parse(item.maps) : (item.maps || []),
+
               createdAt: new Date(baseTime - index * 1000) 
             }));
             
@@ -1799,6 +1861,258 @@ app.post('/api/pickem/update-teams', async (req, res) => {
     }
 });
 
+
+// ==========================================
+// 🏢 战队管理系统 API (Team Management) - 修正版
+// 操作模型: EsportsTeam (主战队库)
+// ==========================================
+
+// 1. [核心修复] 扫描并同步历史战队数据 -> 写入 EsportsTeam
+app.post('/api/admin/teams/sync', async (req, res) => {
+  try {
+    // 🔍 只查询 Team 表中 status = 'approved' 的战队
+    const approvedTeams = await prisma.team.findMany({
+      where: { status: 'approved' },
+      select: { name: true } 
+    });
+
+    let count = 0;
+    for (const t of approvedTeams) {
+      const name = t.name.trim();
+      if (!name) continue;
+
+      // 检查库里是否已有该队，避免重复
+      const exists = await prisma.esportsTeam.findUnique({ where: { name } });
+      if (!exists) {
+        await prisma.esportsTeam.create({
+          data: { 
+            name, 
+            isVerified: true,
+            description: '自动同步自报名数据' // 加个备注方便区分
+          }
+        });
+        count++;
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      message: `同步完成！共发现 ${approvedTeams.length} 支过审战队，新入库 ${count} 支。`, 
+      totalProcessed: approvedTeams.length 
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: '同步失败' });
+  }
+});
+
+// 2. [新增] 批量删除接口
+app.post('/api/admin/teams/batch-delete', async (req, res) => {
+  const { ids } = req.body; // ids 是一个数字数组，例如 [1, 2, 5]
+  
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: '未选择任何战队' });
+  }
+
+  try {
+    await prisma.esportsTeam.deleteMany({
+      where: {
+        id: { in: ids }
+      }
+    });
+    res.json({ success: true, count: ids.length });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: '批量删除失败' });
+  }
+});
+
+// 2. 获取全局战队列表 (管理后台列表使用)
+app.get('/api/teams/list', async (req, res) => {
+  try {
+    const teams = await prisma.esportsTeam.findMany({
+      orderBy: { name: 'asc' }
+    });
+    res.json({ success: true, teams });
+  } catch (e) {
+    res.status(500).json({ error: '获取失败' });
+  }
+});
+
+// 3. [核心接口] 获取下拉框可选战队 (个人中心使用)
+// 逻辑：只读取 EsportsTeam 中已审核通过的战队
+app.get('/api/teams/unique', async (req, res) => {
+  try {
+    const teams = await prisma.esportsTeam.findMany({
+      where: { isVerified: true },
+      select: { name: true },
+      orderBy: { name: 'asc' }
+    });
+    // 返回纯字符串数组，兼容前端逻辑
+    res.json({ success: true, teams: teams.map(t => t.name) });
+  } catch (e) {
+    res.status(500).json({ error: '获取失败' });
+  }
+});
+
+// 4. 管理员 CRUD (操作 EsportsTeam)
+app.post('/api/admin/teams', async (req, res) => {
+  const { name, description, logo } = req.body;
+  try {
+    const exists = await prisma.esportsTeam.findUnique({ where: { name } });
+    if (exists) return res.status(400).json({ error: '战队名已存在' });
+
+    const team = await prisma.esportsTeam.create({
+      data: { name, description, logo, isVerified: true }
+    });
+    res.json({ success: true, team });
+  } catch (e) {
+    res.status(500).json({ error: '创建失败' });
+  }
+});
+
+app.delete('/api/admin/teams/:id', async (req, res) => {
+  try {
+    await prisma.esportsTeam.delete({ where: { id: parseInt(req.params.id) } });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: '删除失败' });
+  }
+});
+
+app.put('/api/admin/teams/:id', async (req, res) => {
+  const { name, description, logo } = req.body;
+  try {
+    const team = await prisma.esportsTeam.update({
+      where: { id: parseInt(req.params.id) },
+      data: { name, description, logo }
+    });
+    res.json({ success: true, team });
+  } catch (e) {
+    res.status(500).json({ error: '更新失败' });
+  }
+});
+
+// ==========================================
+// 🛡️ 战队绑定系统 API (User-Team Binding)
+// 操作模型: TeamMembership (用户-战队关系)
+// ==========================================
+
+// ⚠️ 注意：这里删除了重复的 /api/teams/unique 接口，复用上面的接口
+
+// 1. 获取我的战队状态
+app.get('/api/user/my-team', async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ error: 'Missing userId' });
+
+  try {
+    const membership = await prisma.teamMembership.findUnique({
+      where: { userId }
+    });
+    res.json({ success: true, membership });
+  } catch (e) {
+    res.status(500).json({ error: '查询失败' });
+  }
+});
+
+// 2. 申请绑定战队
+app.post('/api/user/bind-team', async (req, res) => {
+  const { userId, teamName, role } = req.body;
+  
+  try {
+    // 检查是否已有绑定
+    const exists = await prisma.teamMembership.findUnique({ where: { userId } });
+    if (exists) {
+      return res.json({ success: false, message: '你已经加入或申请了一个战队，请先解绑或等待审核' });
+    }
+    
+    // [可选建议] 这里可以加一个校验：确认 teamName 在 EsportsTeam 表里存在
+    // const validTeam = await prisma.esportsTeam.findUnique({ where: { name: teamName } });
+    // if (!validTeam) return res.json({ success: false, message: '该战队不存在' });
+
+    // 创建申请 (默认 PENDING)
+    await prisma.teamMembership.create({
+      data: { userId, teamName, role, status: 'PENDING' }
+    });
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 3. 解绑/退出战队
+app.post('/api/user/unbind-team', async (req, res) => {
+  const { userId } = req.body;
+  try {
+    await prisma.teamMembership.delete({ where: { userId } });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: '解绑失败' });
+  }
+});
+
+// 4. 获取某战队的所有成员 (用于详情页)
+app.get('/api/team/members', async (req, res) => {
+  const { teamName } = req.query;
+  try {
+    const members = await prisma.teamMembership.findMany({
+      where: { teamName },
+      include: { user: { select: { name: true, username: true } } } // 关联查询用户昵称
+    });
+    res.json({ success: true, members });
+  } catch (e) {
+    res.status(500).json({ error: '获取成员失败' });
+  }
+});
+
+// 5. 审批成员 (队长/管理员权限)
+app.post('/api/team/member/approve', async (req, res) => {
+  const { currentUserId, targetMembershipId, action } = req.body; // action: 'APPROVED' | 'REJECTED'
+  
+  try {
+    // A. 权限检查
+    const currentUser = await prisma.user.findUnique({ where: { id: currentUserId } });
+    const operatorMem = await prisma.teamMembership.findUnique({ where: { userId: currentUserId } });
+    
+    // 目标记录
+    const target = await prisma.teamMembership.findUnique({ where: { id: targetMembershipId } });
+    if (!target) return res.status(404).json({ error: '申请记录不存在' });
+
+    let canApprove = false;
+
+    // 1. 系统管理员直接通过
+    if (currentUser && currentUser.role === 'admin') canApprove = true;
+
+    // 2. 本队队长可以通过
+    // 条件：操作者是该队队长，且状态是 APPROVED，且操作的是本队成员
+    if (operatorMem && 
+        operatorMem.teamName === target.teamName && 
+        operatorMem.role === 'CAPTAIN' && 
+        operatorMem.status === 'APPROVED') {
+      canApprove = true;
+    }
+
+    if (!canApprove) return res.status(403).json({ success: false, message: '无权操作' });
+
+    // B. 执行操作
+    if (action === 'REJECTED') {
+      // 拒绝直接删除记录，方便用户重新申请
+      await prisma.teamMembership.delete({ where: { id: targetMembershipId } });
+    } else {
+      await prisma.teamMembership.update({
+        where: { id: targetMembershipId },
+        data: { status: 'APPROVED' }
+      });
+    }
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: '操作失败' });
+  }
+});
+
 // ==========================================
 // 📰 新闻系统 API
 // ==========================================
@@ -1926,6 +2240,246 @@ app.get('/api/debug/fix-pickem', async (req, res) => {
     res.json({ error: e.message });
   }
 });
+
+// ==========================================
+// 🧸 吉祥物工坊 API (Mascot Workshop)
+// ==========================================
+
+// 🔧 工具函数：下载并保存文件到本地 public 目录
+const downloadAndSave = async (url, teamName, ext) => {
+  try {
+    const safeName = teamName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const fileName = `${safeName}_${Date.now()}.${ext}`;
+    
+    // 确保目录存在
+    const folderPath = path.join(__dirname, 'public', '3Dmodels', safeName);
+    
+    // ✅ 修改点：直接使用 existsSync 和 mkdirSync，去掉 fs.
+    if (!existsSync(folderPath)) {
+      mkdirSync(folderPath, { recursive: true });
+    }
+
+    const filePath = path.join(folderPath, fileName);
+    const response = await axios({
+      url,
+      method: 'GET',
+      responseType: 'stream'
+    });
+
+    // ✅ 修改点：直接使用 createWriteStream，去掉 fs.
+    await streamPipeline(response.data, createWriteStream(filePath));
+    
+    return `/3Dmodels/${safeName}/${fileName}`;
+  } catch (err) {
+    console.error('文件下载失败:', err);
+    throw new Error('文件保存失败');
+  }
+};
+// 1. 生成 2D 设计图 (Gemini 优化 -> Meshy 文生图)
+app.post('/api/mascot/gen-2d', async (req, res) => {
+  const { teamId, userPrompt } = req.body;
+  
+  // 🔒 [强制风格约束]
+  const MANDATORY_STYLE = "(3d art, blind box toy style, pop mart style:1.2), chibi humanoid character, anthropomorphic, full body view, standing upright pose, big head small body, cute proportions, distinct head and torso, defined arms and legs, vinyl toy texture, clay material, smooth edges, matte finish, soft studio lighting, octane render, c4d, high definition, clean background, 4k";
+
+  try {
+    // 1. 检查额度
+    const team = await prisma.esportsTeam.findUnique({ where: { id: parseInt(teamId) } });
+    if (team.creditsTextToImage <= 0) return res.json({ success: false, message: '设计次数已用完，请联系管理员充值' });
+
+    // 2. 调用 Google Gemini 优化提示词
+    // 注意：如果 Gemini 调用失败，我们使用兜底策略
+    let refinedPrompt = userPrompt;
+    try {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GOOGLE_API_KEY}`;
+        const geminiPrompt = `
+          You are a professional 3D character prompter.
+          Task: Extract the core subject from the user's idea: "${userPrompt}".
+          Then, merge it seamlessly with this MANDATORY STYLE: "${MANDATORY_STYLE}".
+          Output ONLY the final prompt string in English. No explanations.
+        `;
+        const geminiRes = await axios.post(geminiUrl, { contents: [{ parts: [{ text: geminiPrompt }] }] });
+        if (geminiRes.data.candidates && geminiRes.data.candidates[0].content) {
+            refinedPrompt = geminiRes.data.candidates[0].content.parts[0].text;
+        }
+    } catch (gErr) {
+        console.error("Gemini 调用失败，使用原始提示词+风格后缀");
+        refinedPrompt = `${userPrompt}, ${MANDATORY_STYLE}`;
+    }
+
+    console.log(`[Mascot] Generating 2D with Prompt: ${refinedPrompt}`);
+
+    // 3. 调用 Meshy (Text-to-Image -> Nano Banana)
+    // 📝 文档修正：使用 /openapi/v1, 参数 ai_model
+    const t2iInit = await axios.post(
+      'https://api.meshy.ai/openapi/v1/text-to-image',
+      {
+        ai_model: "nano-banana", // 修正参数名
+        prompt: refinedPrompt,
+        aspect_ratio: "1:1"
+        // 移除 negative_prompt，因为文档未列出
+      },
+      { headers: { Authorization: `Bearer ${process.env.MESHY_API_KEY}` } }
+    );
+
+    const t2iTaskId = t2iInit.data.result; // 获取任务ID
+    console.log(`[Mascot] Meshy Task ID: ${t2iTaskId}`);
+    
+    let imageUrl = null;
+
+    // ⚡️ 后端内部轮询 (Nano Banana 通常很快)
+    // 最多尝试 20 次，每次间隔 1.5 秒
+    for (let i = 0; i < 20; i++) {
+        await new Promise(r => setTimeout(r, 1500));
+        
+        // 📝 文档修正：轮询 URL 也需要 /openapi
+        const check = await axios.get(`https://api.meshy.ai/openapi/v1/text-to-image/${t2iTaskId}`, {
+            headers: { Authorization: `Bearer ${process.env.MESHY_API_KEY}` }
+        });
+        
+        const status = check.data.status;
+        
+        if (status === 'SUCCEEDED') {
+            // 📝 文档修正：返回的是 image_urls 数组
+            if (check.data.image_urls && check.data.image_urls.length > 0) {
+                imageUrl = check.data.image_urls[0];
+            }
+            break;
+        } else if (status === 'FAILED') {
+            throw new Error(`Meshy 生成失败: ${check.data.task_error?.message || '未知错误'}`);
+        }
+    }
+
+    if (!imageUrl) throw new Error("生成超时或未返回图片URL");
+
+    console.log(`[Mascot] Image Generated: ${imageUrl}`);
+
+    // 4. 下载图片到本地服务器
+    const local2DUrl = await downloadAndSave(imageUrl, team.name, 'png');
+
+    // 5. 更新数据库 & 扣除 1 点设计额度
+    await prisma.esportsTeam.update({
+      where: { id: team.id },
+      data: {
+        mascotPrompt: userPrompt, // 存原始输入
+        mascot2DUrl: local2DUrl,
+        mascotStatus: 'WAITING_CONFIRM',
+        creditsTextToImage: { decrement: 1 }
+      }
+    });
+
+    res.json({ success: true, url: local2DUrl, prompt: refinedPrompt });
+
+  } catch (e) {
+    console.error("[Mascot Gen2D Error]", e.response?.data || e.message);
+    res.status(500).json({ error: e.response?.data?.message || e.message || '生成失败' });
+  }
+});
+
+// 2. 开启 3D 建模 (Meshy Image-to-3D) - [最终修正版]
+app.post('/api/mascot/start-3d', async (req, res) => {
+  const { teamId } = req.body;
+  
+  // 🌍 你的公网 IP (Meshy 需要能访问到这张图)
+  // 请确保 http://139.224.33.193/3Dmodels/ 能直接访问到图片
+  const PUBLIC_HOST = "http://139.224.33.193"; 
+
+  try {
+    const team = await prisma.esportsTeam.findUnique({ where: { id: parseInt(teamId) } });
+    
+    if (team.creditsImageTo3D <= 0) return res.json({ success: false, message: '建模次数已用完' });
+    if (!team.mascot2DUrl) return res.json({ success: false, message: '未找到设计图' });
+
+    // 拼接完整的公网 URL
+    const publicImageUrl = `${PUBLIC_HOST}${team.mascot2DUrl}`;
+    console.log(`[Mascot 3D] Requesting Meshy with: ${publicImageUrl}`);
+    
+    // 调用 Meshy Image-to-3D
+    const meshyRes = await axios.post(
+      'https://api.meshy.ai/openapi/v1/image-to-3d',
+      {
+        image_url: publicImageUrl, 
+        enable_pbr: true,      // 开启 PBR 材质
+        ai_model: "latest",    // 使用 Meshy 6 (Latest) [文档推荐]
+        topology: "quad",      // 四边面拓扑 (质量更好)
+        should_remesh: true,   // 启用重构网格
+        target_polycount: 50000 // 设置面数，保证细节
+      },
+      { headers: { Authorization: `Bearer ${process.env.MESHY_API_KEY}` } }
+    );
+
+    // 文档确认：返回值包含 result 字段作为任务 ID
+    const taskId = meshyRes.data.result;
+    console.log(`[Mascot 3D] Task Started. ID: ${taskId}`);
+
+    // 更新数据库
+    await prisma.esportsTeam.update({
+      where: { id: team.id },
+      data: {
+        mascotTaskId: taskId,
+        mascotStatus: 'GEN_3D',
+        creditsImageTo3D: { decrement: 1 }
+      }
+    });
+
+    res.json({ success: true, taskId });
+
+  } catch (e) {
+    console.error('[Mascot 3D Error]', e.response?.data || e.message);
+    res.status(500).json({ error: e.response?.data?.message || '建模任务启动失败，请检查图片公网可访问性' });
+  }
+});
+
+// 3. 轮询 3D 状态 & 下载模型 - [最终修正版]
+app.get('/api/mascot/status/:teamId', async (req, res) => {
+  try {
+    const team = await prisma.esportsTeam.findUnique({ where: { id: parseInt(req.params.teamId) } });
+    if (!team.mascotTaskId) return res.json({ status: 'NONE', progress: 0 });
+
+    // 调用 Meshy 查询接口
+    const checkRes = await axios.get(
+      `https://api.meshy.ai/openapi/v1/image-to-3d/${team.mascotTaskId}`,
+      { headers: { Authorization: `Bearer ${process.env.MESHY_API_KEY}` } }
+    );
+
+    const data = checkRes.data;
+    const status = data.status; // PENDING, IN_PROGRESS, SUCCEEDED, FAILED
+    const progress = data.progress || 0; // 文档确认有 progress 字段 (0-100)
+
+    // 如果任务成功，且数据库状态还未更新 -> 下载 GLB
+    if (status === 'SUCCEEDED' && team.mascotStatus !== 'COMPLETED') {
+        const glbUrl = data.model_urls?.glb;
+        if (!glbUrl) throw new Error("API未返回GLB下载地址");
+
+        console.log(`[Mascot 3D] Success! Downloading GLB: ${glbUrl}`);
+        const localGlbPath = await downloadAndSave(glbUrl, team.name, 'glb');
+
+        await prisma.esportsTeam.update({
+            where: { id: team.id },
+            data: { 
+                mascotStatus: 'COMPLETED',
+                mascot3DUrl: localGlbPath
+            }
+        });
+        
+        return res.json({ status: 'COMPLETED', progress: 100, url: localGlbPath });
+    }
+
+    // 状态映射给前端
+    let uiStatus = status;
+    if (status === 'PENDING' || status === 'IN_PROGRESS') uiStatus = 'GEN_3D';
+    if (status === 'FAILED' || status === 'CANCELED' || status === 'EXPIRED') uiStatus = 'FAILED';
+
+    res.json({ status: uiStatus, progress });
+
+  } catch (e) {
+    console.error("[Mascot Status Error]", e.response?.data || e.message);
+    // 不返回 500，防止前端轮询中断，返回上一次状态或错误标记
+    res.json({ status: 'GEN_3D', progress: 0, error: '查询超时，重试中...' }); 
+  }
+});
+
+
 
 // --- 8. 启动 ---
 prisma.$connect()
