@@ -24,6 +24,11 @@ export default defineConfig({
       '/uploads': {
         target: 'http://localhost:3001',
         changeOrigin: true,
+      },
+      // 👇👇👇 [新增] 转发生成的 3D 资产 👇👇👇
+      '/assets': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
       }
     }
   }, // <--- 这里必须有逗号，分隔 server 和 build

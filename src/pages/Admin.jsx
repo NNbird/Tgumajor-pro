@@ -4,7 +4,7 @@ import { useLeague } from '../context/LeagueContext';
 import { 
   LayoutTemplate, Calendar, Shield, Users, Plus, Edit, Trash2, Upload, Settings, 
   FileSpreadsheet, AlertCircle, XSquare, CheckSquare, MessageSquare, ArrowUp, ArrowDown, Download, ArrowLeft, ArrowRight,
-  History, Trophy, Flag, Bell, Type, Bold, Send, Wand2, FileText 
+  History, Trophy, Flag, Bell, Type, Bold, Send, Wand2, FileText, Box 
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import StatusBadge from '../components/StatusBadge';
@@ -15,6 +15,7 @@ import PlayerDetailModal from '../components/modals/PlayerDetailModal';
 import TournamentEditModal from '../components/modals/TournamentEditModal';
 import { processFile } from '../utils/dataParser';
 import TeamManager from '../components/admin/TeamManager';
+
 
 export default function Admin() {
   const { 
@@ -438,6 +439,13 @@ const handleDeleteGroupedPlayer = (player) => {
            >
               <FileText size={18}/> 新闻管理
            </Link>
+           <Link 
+     to="/admin/assets" 
+     className="flex items-center gap-2 px-4 py-2 rounded-sm transition-all duration-200 whitespace-nowrap text-zinc-400 hover:bg-zinc-800 hover:text-white border border-transparent hover:border-zinc-700"
+   >
+      <Box size={18}/> 资产管理
+   </Link>
+           
            
            {/* 分割线 (可选) */}
            <div className="w-px h-6 bg-zinc-800 self-center mx-1"></div>

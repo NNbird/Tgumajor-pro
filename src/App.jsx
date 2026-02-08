@@ -4,11 +4,11 @@ import { LeagueProvider, useLeague } from './context/LeagueContext';
 import Navbar from './components/Navbar';
 import AIChatWidget from './components/AIChatWidget';
 import LoginModal from './components/modals/LoginModal';
-import PickEm from './pages/PickEm'; // <--- 添加这一行
-import News from './pages/News';          // [新增]
-import AdminNews from './pages/AdminNews'; // [新增]
-
-// 引入背景组件
+import PickEm from './pages/PickEm'; 
+import News from './pages/News';          
+import AdminNews from './pages/AdminNews';
+// ✅ 1. 确保引入路径正确 (你已经写了，保持不动)
+import AdminAssets from './components/admin/AdminAssets'; 
 import ParticleBackground from './components/ParticleBackground';
 
 // Pages
@@ -23,8 +23,7 @@ import History from './pages/History';
 import Profile from './pages/Profile';
 import Maintenance from './pages/Maintenance';
 import MascotCreator from './pages/MascotCreator';
-
-// 安全卫士组件
+import Inventory from './pages/Inventory';
 function SecurityGuard({ children }) {
   const { user } = useLeague();
   const location = useLocation();
@@ -40,19 +39,14 @@ function SecurityGuard({ children }) {
 }
 
 export default function App() {
-  // 🔥 [开关] true = 开启维护模式, false = 正常网站
   const IS_MAINTENANCE_MODE = false;
-
   const [showLogin, setShowLogin] = React.useState(false);
 
-  // --- 1. 维护模式逻辑 (修复版) ---
   if (IS_MAINTENANCE_MODE) {
     return (
-      // [关键修复] 必须包裹 LeagueProvider，因为粒子背景需要读取选手数据
       <LeagueProvider>
         <Router>
           <Routes>
-            {/* 无论访问什么路径，都显示维护页 */}
             <Route path="*" element={<Maintenance />} />
           </Routes>
         </Router>
@@ -60,14 +54,12 @@ export default function App() {
     );
   }
 
-  // --- 2. 正常网站逻辑 ---
   return (
     <LeagueProvider>
       <Router>
         <SecurityGuard>
           <div className="min-h-screen bg-transparent font-sans text-zinc-100 selection:bg-yellow-500 selection:text-black flex flex-col relative">
             
-            {/* 正常模式下的背景 */}
             <ParticleBackground />
 
             <Navbar onLoginClick={() => setShowLogin(true)} />
@@ -80,13 +72,21 @@ export default function App() {
                 <Route path="/stats" element={<Stats />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/feedback" element={<Feedback />} />
+                
+                {/* 管理员入口 */}
                 <Route path="/admin" element={<Admin />} />
+                
+                {/* ✅ 2. 在这里添加资产管理的路由配置！ */}
+                <Route path="/admin/assets" element={<AdminAssets />} />
+                
                 <Route path="/history" element={<History />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="/inventory" element={<Inventory />} />
                 <Route path="/mascot" element={<MascotCreator />} />
                 <Route path="/pickem" element={<PickEm />} />
-                <Route path="/news" element={<News />} />          {/* [新增] 用户新闻页 */}
-                <Route path="/admin/news" element={<AdminNews />} /> {/* [新增] 后台新闻管理 */}
+                <Route path="/news" element={<News />} />         
+                <Route path="/admin/news" element={<AdminNews />} />
+                
               </Routes>
             </main>
 

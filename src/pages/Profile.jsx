@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useLeague } from '../context/LeagueContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { 
   Shield, Lock, User, Save, Fingerprint, 
-  Loader2, CheckCircle2, Users, LogOut, Clock, PlusCircle, Crown, Check, X, Ban, Sparkles, Box
+  Loader2, CheckCircle2, Users, LogOut, Clock, PlusCircle, Crown, Check, X, Ban, Sparkles, Box, Package, ArrowRight, Settings, ExternalLink
 } from 'lucide-react';
+
+// 引入组件
+import ShowcaseEditModal from '../components/modals/ShowcaseEditModal';
 
 export default function Profile() {
   const { user, updateUserProfile, checkNameAvailability } = useLeague();
@@ -13,18 +16,23 @@ export default function Profile() {
 
   // --- 状态定义 ---
   const [teamList, setTeamList] = useState([]);
-  const [myTeam, setMyTeam] = useState(null); // 我的绑定信息
-  const [teamInfo, setTeamInfo] = useState(null); // 战队详细信息 (Logo, 吉祥物等)
-  const [teamMembers, setTeamMembers] = useState([]); // 队友列表
+  const [myTeam, setMyTeam] = useState(null); 
+  const [teamInfo, setTeamInfo] = useState(null); 
+  const [teamMembers, setTeamMembers] = useState([]); 
   const [loadingTeam, setLoadingTeam] = useState(true);
   const [processingId, setProcessingId] = useState(null); 
+
+  // 资产相关状态
+  const [showcaseAssets, setShowcaseAssets] = useState([]);
+  const [isShowcaseEditOpen, setIsShowcaseEditOpen] = useState(false);
+  const [previewAsset, setPreviewAsset] = useState(null); // 当前正在3D预览的资产
 
   const [teamForm, setTeamForm] = useState({ teamName: '', role: 'MEMBER' });
 
   // 个人信息表单
   const [form, setForm] = useState({
     username: user?.username || '', 
-    name: user?.name || '',         
+    name: user?.name || '',          
     currentPassword: '', 
     newPassword: '',
     confirmPassword: ''
@@ -34,7 +42,6 @@ export default function Profile() {
   const [nameStatus, setNameStatus] = useState('idle'); 
   const [nameMsg, setNameMsg] = useState('');
 
-  // 👑 判断是否为队长
   const isCaptain = myTeam?.role === 'CAPTAIN' && myTeam?.status === 'APPROVED';
 
   // --- Effect: 初始加载 ---
@@ -43,10 +50,14 @@ export default function Profile() {
         navigate('/');
         return;
     }
-    Promise.all([fetchMyTeamStatus(), fetchUniqueTeams()]).finally(() => setLoadingTeam(false));
+    setForm(prev => ({ ...prev, username: user.username, name: user.name }));
+    Promise.all([
+        fetchMyTeamStatus(), 
+        fetchUniqueTeams(),
+        fetchShowcaseAssets() // 加载展柜
+    ]).finally(() => setLoadingTeam(false));
   }, [user, navigate]);
 
-  // --- Effect: 加载战队详情 ---
   useEffect(() => {
     if (myTeam && myTeam.status === 'APPROVED') {
         fetchTeamDetails(myTeam.teamName);
@@ -54,13 +65,13 @@ export default function Profile() {
     }
   }, [myTeam]);
 
-  // --- API 辅助函数 ---
+  // --- API ---
   const fetchMyTeamStatus = async () => {
       if (!user?.id) return;
       try {
           const res = await axios.get(`/api/user/my-team?userId=${user.id}`);
           if (res.data.success) setMyTeam(res.data.membership);
-      } catch (e) { console.error("获取绑定状态失败", e); }
+      } catch (e) { console.error(e); }
   };
 
   const fetchUniqueTeams = async () => {
@@ -75,7 +86,7 @@ export default function Profile() {
           const res = await axios.get('/api/teams/list');
           if (res.data.success) {
               const info = res.data.teams.find(t => t.name === name);
-              setTeamInfo(info); // 这里面现在包含了 mascot3DUrl
+              setTeamInfo(info); 
           }
       } catch (e) { console.error(e); }
   };
@@ -87,21 +98,29 @@ export default function Profile() {
       } catch (e) { console.error(e); }
   };
 
-  // --- 交互处理 ---
+  // 获取展示的资产 (复用 user/assets 接口并过滤前端，或者后端支持)
+  // 为了简单，这里直接获取全部 assets 并在前端筛选 isShowcased
+  const fetchShowcaseAssets = async () => {
+      if (!user?.id) return;
+      try {
+          const res = await axios.get(`/api/user/assets?userId=${user.id}`);
+          if (res.data.success) {
+              const showcased = res.data.assets.filter(a => a.isShowcased).slice(0, 5);
+              setShowcaseAssets(showcased);
+          }
+      } catch(e) { console.error("加载展柜失败", e); }
+  };
+
+  // --- 交互 ---
   const handleMemberAction = async (targetMembershipId, action, memberName) => {
       if (!isCaptain) return;
-      const actionText = action === 'APPROVED' ? '通过申请' : '拒绝/踢出';
-      if (!window.confirm(`确定要对 ${memberName} 执行 [${actionText}] 操作吗？`)) return;
-
+      if (!window.confirm(`确定执行操作吗？`)) return;
       setProcessingId(targetMembershipId);
       try {
           const res = await axios.post('/api/team/member/approve', {
-              currentUserId: user.id,
-              targetMembershipId,
-              action
+              currentUserId: user.id, targetMembershipId, action
           });
           if (res.data.success) fetchTeamMembers(myTeam.teamName);
-          else alert(res.data.message);
       } catch (e) { alert('操作失败'); } 
       finally { setProcessingId(null); }
   };
@@ -112,14 +131,14 @@ export default function Profile() {
       try {
           const res = await axios.post('/api/user/bind-team', { userId: user.id, ...teamForm });
           if (res.data.success) {
-              alert('申请已提交，请等待队长或管理员审核！');
+              alert('申请已提交！');
               fetchMyTeamStatus();
           } else { alert(res.data.message); }
       } catch (e) { alert('申请失败'); }
   };
 
   const handleUnbind = async () => {
-      if (!window.confirm('⚠️ 确定要退出战队吗？\n退出后需重新申请才能加入。')) return;
+      if (!window.confirm('⚠️ 确定要退出战队吗？')) return;
       try {
           const res = await axios.post('/api/user/unbind-team', { userId: user.id });
           if (res.data.success) {
@@ -132,12 +151,9 @@ export default function Profile() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMsg('');
-    if (nameStatus === 'taken') return setMsg('❌ 昵称已被占用，请更换');
+    if (nameStatus === 'taken') return setMsg('❌ 昵称已被占用');
     const res = await updateUserProfile({
-        userId: user.id,
-        name: form.name,
-        currentPassword: form.currentPassword,
-        newPassword: form.newPassword
+        userId: user.id, name: form.name, currentPassword: form.currentPassword, newPassword: form.newPassword
     });
     if (res.success) {
         alert('修改成功！');
@@ -159,8 +175,37 @@ export default function Profile() {
   const pendingMembers = teamMembers.filter(m => m.status === 'PENDING');
   const approvedMembers = teamMembers.filter(m => m.status === 'APPROVED');
 
+  // --- 3D 预览弹窗组件 (Inline) ---
+  const Asset3DPreviewModal = ({ asset, onClose }) => {
+    if (!asset) return null;
+    const isOfficial = asset.isOfficial;
+    const modelUrl = isOfficial ? asset.template?.modelPath : asset.modelPath;
+    const name = isOfficial ? asset.template?.name : asset.customName;
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in zoom-in-95">
+            <div className="relative w-full max-w-3xl aspect-video bg-zinc-900 border border-zinc-700 rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+                <button onClick={onClose} className="absolute top-4 right-4 z-10 p-2 bg-black/50 text-white rounded-full hover:bg-white/20"><X size={20}/></button>
+                <div className="flex-1 bg-gradient-to-b from-zinc-800 to-black relative">
+                    <model-viewer
+                        src={modelUrl}
+                        camera-controls
+                        auto-rotate
+                        shadow-intensity="1.5"
+                        style={{ width: '100%', height: '100%' }}
+                    ></model-viewer>
+                    <div className="absolute bottom-4 left-4 pointer-events-none">
+                        <h3 className="text-2xl font-black text-white drop-shadow-md">{name}</h3>
+                        <p className="text-zinc-400 text-xs mt-1">* 拖拽旋转 / 滚轮缩放</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+  };
+
   return (
-    <div className="max-w-5xl mx-auto py-10 animate-in fade-in px-4">
+    <div className="max-w-6xl mx-auto py-10 animate-in fade-in px-4">
       <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-xl shadow-2xl relative overflow-hidden">
         
         <h2 className="text-3xl font-black text-white mb-8 flex items-center border-b border-zinc-800 pb-6">
@@ -168,7 +213,93 @@ export default function Profile() {
         </h2>
 
         {/* =======================
-            🏟️ 战队管理区域
+            💎 资产展柜 (SHOWCASE)
+           ======================= */}
+        <div className="mb-12">
+            <div className="flex justify-between items-end mb-5">
+                <div>
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                        <Package className="text-yellow-500" size={24}/> 
+                        资产展柜 <span className="text-zinc-600 text-sm font-normal uppercase tracking-wider">Showcase</span>
+                    </h3>
+                    <p className="text-zinc-500 text-xs mt-1">展示你最稀有或最得意的 5 个虚拟资产。</p>
+                </div>
+                <div className="flex gap-3">
+                    <button 
+                        onClick={() => setIsShowcaseEditOpen(true)}
+                        className="text-xs flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg transition-colors border border-zinc-700"
+                    >
+                        <Settings size={14}/> 管理展柜
+                    </button>
+                    <Link 
+                        to="/inventory"
+                        className="text-xs flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg transition-colors border border-zinc-700"
+                    >
+                        <ExternalLink size={14}/> 全部库存
+                    </Link>
+                </div>
+            </div>
+
+            {/* 展柜格子 (5个) */}
+            <div className="grid grid-cols-5 gap-4">
+                {[0, 1, 2, 3, 4].map(idx => {
+                    const asset = showcaseAssets[idx];
+                    
+                    if (!asset) {
+                        // 空格子
+                        return (
+                            <div key={`empty-${idx}`} className="aspect-square bg-zinc-950/50 border border-dashed border-zinc-800 rounded-xl flex items-center justify-center text-zinc-700">
+                                <Box size={24} className="opacity-20"/>
+                            </div>
+                        );
+                    }
+
+                    const isOfficial = asset.isOfficial;
+                    const thumb = isOfficial ? asset.template?.imagePath : asset.imagePath;
+                    const name = isOfficial ? asset.template?.name : asset.customName;
+                    
+                    // 特效样式区分
+                    const containerClass = isOfficial 
+                        ? "border-yellow-500/50 shadow-[0_0_20px_rgba(234,179,8,0.15)] bg-gradient-to-br from-yellow-900/20 to-black"
+                        : "border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.15)] bg-gradient-to-br from-purple-900/20 to-black";
+                    
+                    const badgeClass = isOfficial 
+                        ? "bg-yellow-500 text-black" 
+                        : "bg-purple-600 text-white";
+
+                    return (
+                        <div 
+                            key={asset.uid}
+                            onClick={() => setPreviewAsset(asset)}
+                            className={`aspect-square rounded-xl border-2 relative group cursor-pointer overflow-hidden transition-transform hover:scale-105 ${containerClass}`}
+                        >
+                            {/* 图片 */}
+                            <div className="w-full h-full p-3 flex items-center justify-center">
+                                <img src={thumb} alt={name} className="w-full h-full object-contain drop-shadow-2xl group-hover:scale-110 transition-transform duration-500"/>
+                            </div>
+                            
+                            {/* 标签 */}
+                            <div className={`absolute top-2 right-2 text-[10px] font-black px-1.5 py-0.5 rounded shadow-lg ${badgeClass}`}>
+                                {isOfficial ? 'OFFICIAL' : 'UGC'}
+                            </div>
+
+                            {/* 底部名称浮层 */}
+                            <div className="absolute inset-x-0 bottom-0 bg-black/80 backdrop-blur-sm p-2 translate-y-full group-hover:translate-y-0 transition-transform">
+                                <div className="text-[10px] text-center text-white font-bold truncate">{name}</div>
+                                <div className="text-[9px] text-center text-zinc-400 mt-0.5 flex items-center justify-center gap-1">
+                                    <Box size={10}/> 点击预览 3D
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+
+        <hr className="border-zinc-800 mb-10"/>
+
+        {/* =======================
+            🏟️ 战队管理区域 (保持原样)
            ======================= */}
         <div className="mb-10">
             <h3 className="text-xl font-bold text-white mb-4 flex items-center">
@@ -182,7 +313,6 @@ export default function Profile() {
                     {/* Case 1: 未加入 */}
                     {!myTeam && (
                         <div className="bg-zinc-950/50 p-6 rounded-lg border border-zinc-800">
-                            <p className="text-zinc-400 text-sm mb-4">加入战队，开启你的职业生涯。</p>
                             <form onSubmit={handleJoinTeam} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                                 <div>
                                     <label className="text-xs text-zinc-500 mb-1 block">选择战队</label>
@@ -231,14 +361,10 @@ export default function Profile() {
                         </div>
                     )}
 
-                    {/* Case 3: 已加入 (战队面板) - [更新版布局] */}
+                    {/* Case 3: 已加入 (战队面板) */}
                     {myTeam && myTeam.status === 'APPROVED' && (
                         <div className="bg-zinc-950 border border-zinc-800 rounded-lg overflow-hidden">
-                            
-                            {/* 顶部：战队信息与吉祥物展示区 */}
                             <div className="p-6 bg-gradient-to-r from-zinc-900 to-zinc-950 border-b border-zinc-800 flex flex-col md:flex-row justify-between items-start gap-6">
-                                
-                                {/* 左侧：基本信息 */}
                                 <div className="flex gap-5 flex-1">
                                     <div className="w-20 h-20 bg-black rounded-lg border border-zinc-700 flex items-center justify-center overflow-hidden shrink-0">
                                         {teamInfo?.logo ? <img src={teamInfo.logo} alt={myTeam.teamName} className="w-full h-full object-cover"/> : <Shield size={32} className="text-zinc-600"/>}
@@ -250,73 +376,35 @@ export default function Profile() {
                                                 {myTeam.role}
                                             </span>
                                             {isCaptain && (
-                                                <>
-                                                    <span className="text-[10px] bg-yellow-600/20 text-yellow-500 px-2 py-0.5 rounded border border-yellow-600/40 font-bold">队长权限</span>
-                                                    <button 
-                                                        onClick={() => navigate('/mascot')}
-                                                        className="px-3 py-0.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:brightness-110 text-white rounded text-[10px] flex items-center transition-all shadow-lg"
-                                                    >
-                                                        <Sparkles size={10} className="mr-1"/> 吉祥物工坊
-                                                    </button>
-                                                </>
+                                                <button onClick={() => navigate('/mascot')} className="px-3 py-0.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:brightness-110 text-white rounded text-[10px] flex items-center transition-all shadow-lg">
+                                                    <Sparkles size={10} className="mr-1"/> 吉祥物工坊
+                                                </button>
                                             )}
                                         </div>
-                                        <p className="text-zinc-500 text-sm mt-2 max-w-md line-clamp-2">{teamInfo?.description || '暂无简介'}</p>
                                     </div>
                                 </div>
-
-                                {/* 右侧：吉祥物展台 (如果有) */}
                                 {teamInfo?.mascotStatus === 'COMPLETED' && teamInfo?.mascot3DUrl && (
                                     <div className="w-full md:w-48 h-48 bg-black/50 rounded-xl border border-zinc-700 relative overflow-hidden shrink-0 group">
                                         <div className="absolute top-2 left-2 z-10 bg-purple-600/20 text-purple-400 text-[10px] px-2 py-0.5 rounded border border-purple-500/30 font-bold uppercase backdrop-blur-sm flex items-center">
                                             <Box size={10} className="mr-1"/> Team Mascot
                                         </div>
-                                        <model-viewer 
-                                            src={teamInfo.mascot3DUrl} 
-                                            auto-rotate 
-                                            camera-controls
-                                            shadow-intensity="1"
-                                            interaction-prompt="none"
-                                            style={{width: '100%', height: '100%'}}
-                                        ></model-viewer>
-                                        <div className="absolute inset-0 border-2 border-purple-500/0 group-hover:border-purple-500/30 transition-colors pointer-events-none rounded-xl"></div>
+                                        <model-viewer src={teamInfo.mascot3DUrl} auto-rotate camera-controls shadow-intensity="1" interaction-prompt="none" style={{width: '100%', height: '100%'}}></model-viewer>
                                     </div>
                                 )}
-
-                                {/* 操作按钮 */}
-                                <button onClick={handleUnbind} className="absolute top-6 right-6 text-zinc-500 hover:text-red-500 transition-colors p-2" title="退出战队">
-                                    <LogOut size={16}/>
-                                </button>
+                                <button onClick={handleUnbind} className="absolute top-6 right-6 text-zinc-500 hover:text-red-500 transition-colors p-2" title="退出战队"><LogOut size={16}/></button>
                             </div>
 
-                            {/* 👑 队长专属：待审核列表 */}
+                            {/* 队长审核区 */}
                             {isCaptain && pendingMembers.length > 0 && (
                                 <div className="p-4 bg-orange-900/5 border-b border-orange-900/20">
-                                    <h4 className="text-xs font-bold text-orange-400 mb-3 uppercase flex items-center">
-                                        <AlertCircle size={14} className="mr-1"/> 待审核申请 ({pendingMembers.length})
-                                    </h4>
+                                    <h4 className="text-xs font-bold text-orange-400 mb-3 uppercase flex items-center">待审核申请 ({pendingMembers.length})</h4>
                                     <div className="space-y-2">
                                         {pendingMembers.map(m => (
                                             <div key={m.id} className="flex items-center justify-between bg-black/40 p-3 rounded border border-orange-900/20">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="text-white font-bold text-sm">{m.user?.name}</div>
-                                                    <div className="text-xs text-zinc-500">申请: <span className="text-zinc-300">{m.role}</span></div>
-                                                </div>
+                                                <div className="text-sm font-bold text-white">{m.user?.name} <span className="text-zinc-500 font-normal ml-2">{m.role}</span></div>
                                                 <div className="flex gap-2">
-                                                    <button 
-                                                        onClick={() => handleMemberAction(m.id, 'APPROVED', m.user?.name)}
-                                                        disabled={processingId === m.id}
-                                                        className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white text-xs rounded flex items-center"
-                                                    >
-                                                        {processingId === m.id ? <Loader2 size={12} className="animate-spin"/> : <Check size={12} className="mr-1"/>} 通过
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleMemberAction(m.id, 'REJECTED', m.user?.name)}
-                                                        disabled={processingId === m.id}
-                                                        className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-xs rounded flex items-center"
-                                                    >
-                                                        <X size={12} className="mr-1"/> 拒绝
-                                                    </button>
+                                                    <button onClick={() => handleMemberAction(m.id, 'APPROVED', m.user?.name)} className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white text-xs rounded">通过</button>
+                                                    <button onClick={() => handleMemberAction(m.id, 'REJECTED', m.user?.name)} className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-xs rounded">拒绝</button>
                                                 </div>
                                             </div>
                                         ))}
@@ -330,29 +418,17 @@ export default function Profile() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     {approvedMembers.map(member => (
                                         <div key={member.id} className={`flex items-center justify-between p-3 rounded border ${member.userId === user.id ? 'bg-zinc-800/50 border-cyan-900/50' : 'bg-black border-zinc-800'}`}>
-                                            <div className="flex items-center">
-                                                <div className={`p-2 rounded-full mr-3 ${member.role === 'CAPTAIN' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-zinc-800 text-zinc-500'}`}>
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-2 rounded-full ${member.role === 'CAPTAIN' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-zinc-800 text-zinc-500'}`}>
                                                     {member.role === 'CAPTAIN' ? <Crown size={16}/> : <User size={16}/>}
                                                 </div>
                                                 <div>
-                                                    <div className="text-white font-bold text-sm flex items-center">
-                                                        {member.user?.name}
-                                                        {member.userId === user.id && <span className="ml-2 text-[10px] bg-cyan-900 text-cyan-300 px-1.5 rounded">ME</span>}
-                                                    </div>
-                                                    <div className="text-xs text-zinc-500 font-mono mt-0.5">{member.role}</div>
+                                                    <div className="text-white font-bold text-sm">{member.user?.name} {member.userId === user.id && '(ME)'}</div>
+                                                    <div className="text-xs text-zinc-500">{member.role}</div>
                                                 </div>
                                             </div>
-
-                                            {/* 👑 队长权限：踢人 */}
                                             {isCaptain && member.userId !== user.id && (
-                                                <button 
-                                                    onClick={() => handleMemberAction(member.id, 'REJECTED', member.user?.name)}
-                                                    disabled={processingId === member.id}
-                                                    className="p-2 text-zinc-600 hover:text-red-500 hover:bg-red-900/10 rounded transition-colors"
-                                                    title="踢出战队"
-                                                >
-                                                    <Ban size={16} />
-                                                </button>
+                                                <button onClick={() => handleMemberAction(member.id, 'REJECTED', member.user?.name)} className="p-2 text-zinc-600 hover:text-red-500"><Ban size={16}/></button>
                                             )}
                                         </div>
                                     ))}
@@ -366,22 +442,16 @@ export default function Profile() {
 
         <hr className="border-zinc-800 mb-10"/>
 
-        {/* 个人信息表单 */}
+        {/* 个人信息表单 (保持不变) */}
         <form onSubmit={handleSubmit} className="space-y-6 opacity-80 hover:opacity-100 transition-opacity">
-            <h3 className="text-xl font-bold text-white mb-4 flex items-center">
-                <Fingerprint className="text-cyan-500 mr-2" size={24}/> 账号信息
-            </h3>
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center"><Fingerprint className="text-cyan-500 mr-2" size={24}/> 账号信息</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <label className="text-xs text-zinc-500 uppercase font-bold mb-1 block">登录账号</label>
-                    <div className="flex items-center bg-zinc-950 border border-zinc-800 rounded p-3 text-zinc-500 font-mono">
-                        <Lock size={16} className="mr-3"/> {form.username}
-                    </div>
+                    <div className="flex items-center bg-zinc-950 border border-zinc-800 rounded p-3 text-zinc-500 font-mono"><Lock size={16} className="mr-3"/> {form.username}</div>
                 </div>
                 <div>
-                    <label className="text-xs text-zinc-500 uppercase font-bold mb-1 flex justify-between">
-                        显示昵称 {nameStatus === 'available' && <span className="text-green-500 text-xs">✔ 可用</span>}
-                    </label>
+                    <label className="text-xs text-zinc-500 uppercase font-bold mb-1 block">显示昵称 {nameStatus === 'available' && <span className="text-green-500 text-xs ml-2">✔ 可用</span>}</label>
                     <div className="flex items-center bg-black border border-zinc-700 focus-within:border-cyan-500 rounded p-3">
                         <User size={16} className="text-zinc-500 mr-3"/>
                         <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="bg-transparent text-white outline-none w-full"/>
@@ -403,6 +473,22 @@ export default function Profile() {
                 <Save className="mr-2"/> 保存更改
             </button>
         </form>
+
+        {/* 弹窗挂载 */}
+        {isShowcaseEditOpen && (
+            <ShowcaseEditModal 
+                userId={user.id} 
+                onClose={() => setIsShowcaseEditOpen(false)} 
+                onSuccess={fetchShowcaseAssets}
+            />
+        )}
+        {previewAsset && (
+            <Asset3DPreviewModal 
+                asset={previewAsset} 
+                onClose={() => setPreviewAsset(null)}
+            />
+        )}
+
       </div>
     </div>
   );

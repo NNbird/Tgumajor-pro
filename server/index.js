@@ -2479,7 +2479,504 @@ app.get('/api/mascot/status/:teamId', async (req, res) => {
   }
 });
 
+// ==========================================
+// 💎 虚拟资产管理后台 API (Asset Admin System)
+// ==========================================
 
+// 1. 创建官方资产模板 (SKU) - [支持文件上传 或 AI生成路径]
+app.post('/api/admin/asset-templates', upload.fields([{ name: 'model', maxCount: 1 }, { name: 'image', maxCount: 1 }]), async (req, res) => {
+  try {
+    const { id, name, description, type, rarity, isTradable, aiModelPath, aiImagePath } = req.body;
+    
+    let modelPath = '';
+    let imagePath = '';
+
+    // 逻辑分支 1: 如果有 AI 生成的路径，优先使用
+    if (aiModelPath && aiImagePath) {
+        console.log(`[Asset] Using AI Generated Paths: ${aiModelPath}`);
+        modelPath = aiModelPath;
+        imagePath = aiImagePath;
+    } 
+    // 逻辑分支 2: 否则检查是否有文件上传
+    else if (req.files && req.files['model'] && req.files['image']) {
+        modelPath = `/uploads/${req.files['model'][0].filename}`;
+        imagePath = `/uploads/${req.files['image'][0].filename}`;
+        console.log(`[Asset] Using Uploaded Files: ${modelPath}`);
+    } else {
+        return res.status(400).json({ error: '必须上传模型文件(.glb)和缩略图，或者使用 AI 生成' });
+    }
+
+    // 写入数据库
+    const template = await prisma.assetTemplate.create({
+      data: {
+        id: parseInt(id),
+        name,
+        description,
+        type,
+        rarity,
+        isTradable: isTradable === 'true',
+        modelPath,
+        imagePath
+      }
+    });
+
+    res.json({ success: true, template });
+  } catch (e) {
+    console.error("Create Template Error:", e);
+    if (e.code === 'P2002') return res.status(400).json({ error: '模板 ID 已存在，请换一个' });
+    res.status(500).json({ error: '创建失败: ' + e.message });
+  }
+});
+// 2. 获取所有资产模板
+app.get('/api/admin/asset-templates', async (req, res) => {
+  try {
+    const templates = await prisma.assetTemplate.findMany({
+      orderBy: { id: 'desc' }
+    });
+    res.json({ success: true, templates });
+  } catch (e) {
+    res.status(500).json({ error: '获取失败' });
+  }
+});
+
+// 3. 👑 上帝之手：批量发放资产
+app.post('/api/admin/assets/distribute', async (req, res) => {
+  const { templateId, targetType, targetIds } = req.body; 
+  
+  if (!templateId || !targetIds || targetIds.length === 0) {
+    return res.status(400).json({ error: '参数不完整' });
+  }
+
+  try {
+    let recipientUserIds = [];
+    
+    if (targetType === 'TEAM') {
+      const memberships = await prisma.teamMembership.findMany({
+        where: { teamName: { in: targetIds }, status: 'APPROVED' }
+      });
+      recipientUserIds = memberships.map(m => m.userId);
+    } else {
+      recipientUserIds = targetIds;
+    }
+
+    if (recipientUserIds.length === 0) {
+      return res.json({ success: false, message: '未找到符合条件的用户' });
+    }
+
+    const operations = recipientUserIds.map(uid => {
+      const randomSuffix = Math.floor(100000 + Math.random() * 900000); 
+      const assetUid = `${templateId}${randomSuffix}`;
+
+      return prisma.userAsset.create({
+        data: {
+          uid: assetUid,
+          isOfficial: true,
+          templateId: parseInt(templateId),
+          ownerId: uid,
+          creatorId: 'SYSTEM',
+          status: 'NORMAL',
+          history: {
+            create: { type: 'ISSUE', toUserId: uid, fromUserId: 'SYSTEM_ADMIN' }
+          }
+        }
+      });
+    });
+
+    await prisma.$transaction(operations);
+    res.json({ success: true, count: operations.length, message: `成功发放给 ${operations.length} 人` });
+
+  } catch (e) {
+    console.error("Distribute Error:", e);
+    res.status(500).json({ error: '发放失败: ' + e.message });
+  }
+});
+
+// 4. 全局资产监控
+app.get('/api/admin/assets/list', async (req, res) => {
+  const { filter } = req.query;
+  try {
+    const where = {};
+    if (filter) {
+      where.OR = [
+        { uid: { contains: filter } },
+        { owner: { name: { contains: filter } } },
+        { template: { name: { contains: filter } } },
+        { customName: { contains: filter } }
+      ];
+    }
+    const assets = await prisma.userAsset.findMany({
+      where,
+      include: {
+        owner: { select: { id: true, name: true, username: true } },
+        template: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+    res.json({ success: true, assets });
+  } catch (e) {
+    res.status(500).json({ error: '查询失败' });
+  }
+});
+
+// 5. 资产回收
+app.post('/api/admin/assets/revoke', async (req, res) => {
+  const { assetUid } = req.body;
+  try {
+    const asset = await prisma.userAsset.findUnique({
+      where: { uid: assetUid },
+      include: { history: { orderBy: { timestamp: 'desc' } } }
+    });
+
+    if (!asset) return res.status(404).json({ error: '资产不存在' });
+
+    const logs = asset.history;
+    if (logs.length <= 1) {
+      await prisma.userAsset.delete({ where: { uid: assetUid } });
+      return res.json({ success: true, message: '资产已销毁' });
+    } else {
+      const prevOwnerId = logs[1].toUserId; 
+      if (!prevOwnerId || prevOwnerId === 'SYSTEM_ADMIN') {
+         await prisma.userAsset.delete({ where: { uid: assetUid } });
+         return res.json({ success: true, message: '资产已销毁 (上一任为系统)' });
+      }
+      await prisma.$transaction([
+        prisma.userAsset.update({
+          where: { uid: assetUid },
+          data: { ownerId: prevOwnerId }
+        }),
+        prisma.assetTransferLog.create({
+          data: {
+            assetUid: assetUid,
+            type: 'REVOKE',
+            fromUserId: asset.ownerId,
+            toUserId: prevOwnerId
+          }
+        })
+      ]);
+      return res.json({ success: true, message: '资产已回退给上一任主人' });
+    }
+  } catch (e) {
+    console.error("Revoke Error:", e);
+    res.status(500).json({ error: '操作失败' });
+  }
+});
+
+// 6. 简单的用户列表
+app.get('/api/admin/users/simple', async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      select: { id: true, name: true, username: true, role: true, teamMemberships: true }
+    });
+    const formatted = users.map(u => ({
+        id: u.id,
+        name: u.name,
+        username: u.username,
+        team: u.teamMemberships.length > 0 ? u.teamMemberships[0].teamName : '无战队'
+    }));
+    res.json({ success: true, users: formatted });
+  } catch (e) {
+    res.status(500).json({ error: '获取用户失败' });
+  }
+});
+
+// [新增] 检查昵称是否可用接口
+app.post('/api/check-name', async (req, res) => {
+  const { name, excludeUserId } = req.body;
+  if (!name) return res.json({ available: false });
+  try {
+    const user = await prisma.user.findFirst({
+      where: {
+        name: name,
+        id: excludeUserId ? { not: excludeUserId } : undefined
+      }
+    });
+    if (user) {
+      return res.json({ available: false, message: '该昵称已被使用' });
+    } else {
+      return res.json({ available: true });
+    }
+  } catch (e) {
+    res.status(500).json({ error: '检测失败' });
+  }
+});
+
+// ==========================================
+// 🏭 3D 资产生成工厂 (Asset Factory) - Meshy-5 双轨制
+// ==========================================
+
+// 1. 核心生成接口 (Text/Image -> 3D)
+// 逻辑：Image模式直接跑; Text模式先跑NanoBanana生成图，再串行跑Meshy-5
+app.post('/api/assets/generate', upload.single('image'), async (req, res) => {
+  const { userId, prompt, mode } = req.body; // mode: 'TEXT' | 'IMAGE'
+  const PUBLIC_HOST = "http://139.224.33.193"; // 必须是公网IP
+
+  try {
+    // 1. 检查用户额度
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ error: '用户不存在' });
+    if (user.generationCredits <= 0) return res.json({ success: false, message: '您的生成次数已用完' });
+
+    let sourceImageUrl = '';
+    let finalPrompt = prompt || '';
+
+    // --- 分支 A: 图片模式 (直接上传 -> 3D) ---
+    if (mode === 'IMAGE') {
+       if (!req.file) return res.status(400).json({ error: '请上传图片' });
+       // 图片已由 Multer 存入 public/uploads，构造公网 URL
+       sourceImageUrl = `${PUBLIC_HOST}/uploads/${req.file.filename}`;
+       console.log(`[Factory] Mode IMAGE: Source ready -> ${sourceImageUrl}`);
+
+    } 
+    // --- 分支 B: 文本模式 (文本 -> 2D -> 3D) ---
+    else if (mode === 'TEXT') {
+       if (!prompt) return res.status(400).json({ error: '请输入文本描述' });
+       
+       console.log(`[Factory] Mode TEXT: Generating intermediate 2D image...`);
+       
+       // a. 调用 Meshy Text-to-Image (Nano Banana)
+       const t2iInit = await axios.post('https://api.meshy.ai/openapi/v1/text-to-image', 
+         { ai_model: "nano-banana", prompt: prompt, aspect_ratio: "1:1" },
+         { headers: { Authorization: `Bearer ${process.env.MESHY_API_KEY}` } }
+       );
+       const t2iTaskId = t2iInit.data.result;
+
+       // b. 后端内部轮询 (等待 2D 生成, 最多15秒)
+       let generated2DUrl = null;
+       for (let i = 0; i < 15; i++) {
+          await new Promise(r => setTimeout(r, 1000));
+          const check = await axios.get(`https://api.meshy.ai/openapi/v1/text-to-image/${t2iTaskId}`, { headers: { Authorization: `Bearer ${process.env.MESHY_API_KEY}` } });
+          if (check.data.status === 'SUCCEEDED' && check.data.image_urls?.[0]) {
+             generated2DUrl = check.data.image_urls[0];
+             break;
+          }
+          if (check.data.status === 'FAILED') throw new Error("2D 中间图生成失败");
+       }
+       if (!generated2DUrl) throw new Error("2D 生成超时，请重试");
+
+       // c. 下载这张图到本地 (为了生成稳定的 Source URL)
+       const tempName = `temp_t2i_${Date.now()}.png`;
+       // 这里复用之前的 downloadFile 逻辑，如果没有请看下面补充
+       const response = await axios({ url: generated2DUrl, method: 'GET', responseType: 'stream' });
+       const destPath = path.join(UPLOADS_DIR, tempName);
+       await streamPipeline(response.data, createWriteStream(destPath));
+       
+       sourceImageUrl = `${PUBLIC_HOST}/uploads/${tempName}`;
+       console.log(`[Factory] Mode TEXT: 2D Generated & Saved -> ${sourceImageUrl}`);
+    }
+
+    // 3. 核心：启动 Meshy-5 Image-to-3D
+    console.log(`[Factory] Starting Meshy-5 Image-to-3D...`);
+    const meshyRes = await axios.post('https://api.meshy.ai/openapi/v1/image-to-3d', 
+      {
+        image_url: sourceImageUrl,
+        enable_pbr: true,
+        ai_model: "meshy-5", // 🎯 指定 Meshy-5
+        topology: "quad",
+        target_polycount: 50000,
+        should_remesh: true
+      },
+      { headers: { Authorization: `Bearer ${process.env.MESHY_API_KEY}` } }
+    );
+    const meshyTaskId = meshyRes.data.result;
+
+    // 4. 数据库记录：扣额度 + 创建任务
+    await prisma.$transaction([
+        prisma.user.update({ where: { id: userId }, data: { generationCredits: { decrement: 1 } } }),
+        prisma.generationTask.create({
+          data: {
+            meshyTaskId,
+            type: mode === 'IMAGE' ? 'IMAGE_TO_3D' : 'TEXT_TO_3D_CHAIN',
+            status: 'SUBMITTED',
+            prompt: finalPrompt,
+            sourceImageUrl: sourceImageUrl,
+            userId
+          }
+        })
+    ]);
+
+    res.json({ success: true, taskId: meshyTaskId }); // 返回 Meshy 任务ID供前端轮询
+
+  } catch (e) {
+    console.error("[Factory Error]", e.response?.data || e.message);
+    res.status(500).json({ error: e.message || '任务启动失败' });
+  }
+});
+
+// 2. 任务状态轮询与自动入库
+app.get('/api/assets/task/:meshyTaskId', async (req, res) => {
+  const { meshyTaskId } = req.params;
+  
+  // 准备存放目录
+  const ASSETS_DIR = path.join(__dirname, 'public', 'assets');
+  const MODEL_DIR = path.join(ASSETS_DIR, 'models');
+  const THUMB_DIR = path.join(ASSETS_DIR, 'thumbnails');
+  [MODEL_DIR, THUMB_DIR].forEach(d => { if(!existsSync(d)) mkdirSync(d, {recursive:true}); });
+
+  try {
+    // 1. 查数据库任务
+    const task = await prisma.generationTask.findUnique({ where: { meshyTaskId } });
+    if (!task) return res.status(404).json({ error: '任务不存在' });
+
+    // 如果已经下载过，直接返回结果
+    if (task.status === 'DOWNLOADED') {
+        const asset = await prisma.userAsset.findUnique({ where: { uid: task.resultAssetUid } });
+        return res.json({ status: 'COMPLETED', progress: 100, asset });
+    }
+    if (task.status === 'FAILED') return res.json({ status: 'FAILED' });
+
+    // 2. 查 Meshy API
+    const check = await axios.get(`https://api.meshy.ai/openapi/v1/image-to-3d/${meshyTaskId}`, {
+        headers: { Authorization: `Bearer ${process.env.MESHY_API_KEY}` }
+    });
+    const { status, progress, model_urls, thumbnail_url } = check.data;
+
+    // 3. 更新进度
+    if (status !== 'SUCCEEDED') {
+        if (status === 'FAILED') {
+            await prisma.generationTask.update({ where: { meshyTaskId }, data: { status: 'FAILED' } });
+            return res.json({ status: 'FAILED' });
+        }
+        // 更新百分比
+        await prisma.generationTask.update({ where: { meshyTaskId }, data: { progress: progress || 0 } });
+        return res.json({ status: 'IN_PROGRESS', progress });
+    }
+
+    // 4. 成功！下载资源并入库
+    if (status === 'SUCCEEDED') {
+        console.log(`[Factory] Task Success. Downloading assets...`);
+        
+        const safeId = `${Date.now()}_${Math.floor(Math.random()*1000)}`;
+        const localModelPath = `/assets/models/${safeId}.glb`;
+        const localThumbPath = `/assets/thumbnails/${safeId}.png`;
+
+        // 下载文件流
+        const download = async (url, p) => {
+            const resp = await axios({ url, method: 'GET', responseType: 'stream' });
+            await streamPipeline(resp.data, createWriteStream(path.join(__dirname, 'public', p)));
+        };
+
+        await Promise.all([
+            download(model_urls.glb, localModelPath),
+            download(thumbnail_url, localThumbPath)
+        ]);
+
+        // 生成自制资产 UID: 999999 + 6位随机
+        //const assetUid = `999999${Math.floor(100000 + Math.random() * 900000)}`;
+        
+        // 新逻辑: 随机 6 位作为伪模板ID + 随机 6 位后缀
+        const randomTemplateId = Math.floor(100000 + Math.random() * 900000);
+        const randomSuffix = Math.floor(100000 + Math.random() * 900000);
+        const assetUid = `${randomTemplateId}${randomSuffix}`;
+        
+        // 事务：创建资产 + 标记任务完成
+        const [newAsset] = await prisma.$transaction([
+            prisma.userAsset.create({
+                data: {
+                    uid: assetUid,
+                    isOfficial: false,
+                    customName: task.prompt ? `生成: ${task.prompt.slice(0,10)}` : '自制模型',
+                    modelPath: localModelPath,
+                    imagePath: localThumbPath,
+                    ownerId: task.userId,
+                    creatorId: task.userId,
+                    status: 'NORMAL',
+                    history: { create: { type: 'GENERATE', toUserId: task.userId } }
+                }
+            }),
+            prisma.generationTask.update({
+                where: { meshyTaskId },
+                data: { status: 'DOWNLOADED', progress: 100, resultAssetUid: assetUid }
+            })
+        ]);
+
+        return res.json({ status: 'COMPLETED', progress: 100, asset: newAsset });
+    }
+
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: '查询出错' });
+  }
+});
+
+// 3. 获取用户背包 (我的资产)
+app.get('/api/user/assets', async (req, res) => {
+    const { userId } = req.query;
+    try {
+        const assets = await prisma.userAsset.findMany({
+            where: { ownerId: userId },
+            include: { template: true }, // 关联官方模板信息
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json({ success: true, assets });
+    } catch(e) {
+        res.status(500).json({ error: '获取失败' });
+    }
+});
+
+// [新增] 更新用户资产展示设置 (展柜)
+app.post('/api/user/assets/showcase', async (req, res) => {
+  const { userId, assetUids } = req.body; // assetUids 是一个数组，最多5个 UID
+
+  if (!Array.isArray(assetUids) || assetUids.length > 5) {
+    return res.status(400).json({ error: '最多只能选择 5 个资产进行展示' });
+  }
+
+  try {
+    // 使用事务确保原子性
+    await prisma.$transaction(async (tx) => {
+      // 1. 先把该用户所有资产的展示状态重置为 false
+      await tx.userAsset.updateMany({
+        where: { ownerId: userId },
+        data: { isShowcased: false }
+      });
+
+      // 2. 如果有选中的资产，将它们设为 true
+      if (assetUids.length > 0) {
+        await tx.userAsset.updateMany({
+          where: { 
+            ownerId: userId,
+            uid: { in: assetUids }
+          },
+          data: { isShowcased: true }
+        });
+      }
+    });
+
+    res.json({ success: true, message: '展柜更新成功' });
+  } catch (e) {
+    console.error("Update Showcase Error:", e);
+    res.status(500).json({ error: '更新失败' });
+  }
+});
+
+// [新增] 更新资产信息 (改名/改描述)
+app.post('/api/user/asset/update', async (req, res) => {
+  const { userId, assetUid, name, description } = req.body;
+  
+  try {
+    // 1. 鉴权：确认资产存在且属于该用户
+    const asset = await prisma.userAsset.findUnique({ where: { uid: assetUid } });
+    
+    if (!asset) return res.status(404).json({ error: '资产不存在' });
+    if (asset.ownerId !== userId) return res.status(403).json({ error: '您无权修改此资产' });
+    if (asset.isOfficial) return res.status(403).json({ error: '官方资产不可修改信息' });
+
+    // 2. 更新
+    await prisma.userAsset.update({
+      where: { uid: assetUid },
+      data: {
+        customName: name,
+        customDescription: description
+      }
+    });
+
+    res.json({ success: true, message: '更新成功' });
+  } catch (e) {
+    console.error("Update Asset Error:", e);
+    res.status(500).json({ error: '更新失败' });
+  }
+});
 
 // --- 8. 启动 ---
 prisma.$connect()

@@ -167,6 +167,10 @@ model User {
   email       String?  @unique // 邮箱 (可选)
   forceUpdate Boolean  @default(false)
   teamMemberships TeamMembership[] // [新增] 关联字段
+  // [新增] 资产相关字段
+  generationCredits Int @default(3)     // 剩余生成次数 (默认为3)
+  assets            UserAsset[]         // 个人背包
+  generationTasks   GenerationTask[]    // 生成任务记录
 }
 
 
@@ -284,6 +288,9 @@ model EsportsTeam {
   description String?  
   isVerified  Boolean  @default(true) 
   
+  // [新增] 战队荣誉资产
+  assets            UserAsset[]         // 战队仓库 (存放奖杯等)
+  
   // --- 🤖 吉祥物工坊字段 (Mascot Workshop) ---
   mascotPrompt     String?  @db.Text // 用户的原始创意
   mascot2DUrl      String?  // 本地 2D 设计图路径 (e.g., /3Dmodels/Navi/date.png)
@@ -297,4 +304,112 @@ model EsportsTeam {
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// ==========================================
+// 💎 虚拟资产与库存系统 (Inventory System)
+// ==========================================
+
+// 1. 资产模板表 (仅官方资产使用，定义 SKU)
+model AssetTemplate {
+  id          Int       @id // 自定义ID (如 100001)
+  name        String    // 模板名称 (如 "巨龙传说")
+  description String?   @db.Text
+  type        String    // 类别: WEAPON, CHARACTER, BADGE, TROPHY
+  
+  isTradable  Boolean   @default(false) // 是否允许交易
+  rarity      String    @default("COMMON") // 稀有度: COMMON, RARE, EPIC, LEGENDARY
+  
+  // 官方资产统一使用的资源路径
+  modelPath   String    // .glb 文件路径
+  imagePath   String    // .png 缩略图路径
+
+  // 关联所有基于此模板生成的实例
+  instances   UserAsset[] 
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// 2. 资产实例表 (实际存在的物品)
+model UserAsset {
+  // UID 规则: 
+  // 官方: 模板ID(6位) + 随机(6位) = 12位
+  // 自制: 999999 + 随机(6位) = 12位
+  uid         String    @id 
+  
+  // --- 来源区分 ---
+  isOfficial  Boolean   @default(false) // true=官方发放, false=玩家自制
+  templateId  Int?      // 关联模板 (仅官方)
+  template    AssetTemplate? @relation(fields: [templateId], references: [id])
+  
+  // --- 自制资产特有字段 ---
+  customName  String?   // 玩家给自制物品起的名字
+  customDescription String?   @db.Text  // 👈 确保这行存在！这是我们要加的新字段
+  modelPath   String?   // 自制模型的路径 (官方资产为空，读模板的)
+  imagePath   String?   // 自制缩略图 (官方资产为空，读模板的)
+  
+  // --- 归属权 (多态：属于人 或 属于战队) ---
+  ownerId     String?   // 当前持有人 ID
+  owner       User?     @relation(fields: [ownerId], references: [id])
+  
+  ownerTeamId Int?      // 当前持有战队 ID (用于战队奖杯/荣誉)
+  ownerTeam   EsportsTeam? @relation(fields: [ownerTeamId], references: [id])
+  
+  // --- 展示设置 ---
+  isShowcased Boolean   @default(false) // 是否在主页展柜显示 (限制5个)
+  
+  // --- 溯源与状态 ---
+  creatorId   String?   // 初始创建者/第一任主人 (用于回收逻辑)
+  status      String    @default("NORMAL") // NORMAL, LOCKED(交易中), BURNED(销毁)
+  
+  // --- 历史记录 ---
+  history     AssetTransferLog[] 
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([ownerId])
+  @@index([ownerTeamId])
+  @@index([templateId])
+}
+
+// 3. 资产流转日志 (用于追溯)
+model AssetTransferLog {
+  id          Int       @id @default(autoincrement())
+  
+  assetUid    String
+  asset       UserAsset @relation(fields: [assetUid], references: [uid], onDelete: Cascade)
+  
+  fromUserId  String?   // 发送方 (空代表系统发放)
+  toUserId    String?   // 接收方 (空代表回收/销毁)
+  
+  type        String    // ISSUE(发放), TRANSFER(交易), REVOKE(撤销), GENERATE(自制)
+  price       String?   // 预留：如果有交易金额
+  
+  timestamp   DateTime  @default(now())
+}
+
+// 4. 生成任务表 (用于处理 Meshy-5 异步生成)
+model GenerationTask {
+  id            String   @id @default(uuid())
+  meshyTaskId   String   @unique // Meshy 返回的任务 ID
+  
+  type          String   // 'TEXT_TO_3D' | 'IMAGE_TO_3D'
+  status        String   @default("PENDING") // PENDING, IN_PROGRESS, SUCCEEDED, FAILED, DOWNLOADED
+  progress      Int      @default(0)
+  
+  // 输入记录
+  prompt        String?  @db.Text
+  sourceImageUrl String? // 上传的原图路径
+  
+  // 归属
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  
+  // 结果关联
+  resultAssetUid String? // 生成成功后关联的资产 UID
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
