@@ -11,6 +11,9 @@ export default function MascotCreator() {
   const { user } = useLeague();
   const navigate = useNavigate();
   
+  // 移动端检查
+  const isMobile = window.innerWidth < 768 || /Mobi|Android|iPhone/i.test(navigator.userAgent);
+
   // 3D Viewer 引用
   const modelViewerRef = useRef(null);
 
@@ -333,100 +336,103 @@ export default function MascotCreator() {
                             
                             {/* 3D 视窗 */}
                             <div className="flex-1 relative bg-[#121214]">
-                                <model-viewer 
-                                    ref={modelViewerRef}
-                                    src={team.mascot3DUrl} 
-                                    alt="3D Mascot"
-                                    camera-controls 
-                                    auto-rotate={autoRotate ? '' : null}
-                                    rotation-per-second="30deg"
-                                    interaction-prompt="none" 
-                                    shadow-intensity="1.5"
-                                    shadow-softness="0.8"
-                                    exposure={exposure}
-                                    tone-mapping="aces"
-                                    environment-image="neutral" 
-                                    min-camera-orbit="auto auto 5%"
-                                    max-camera-orbit="auto auto 200%"
-                                    style={{
-                                        width: '100%', 
-                                        height: '100%', 
-                                        backgroundImage: 'radial-gradient(#27272a 1px, transparent 1px)', 
-                                        backgroundSize: '24px 24px'
-                                    }}
-                                >
-                                    <div slot="poster" className="flex items-center justify-center w-full h-full text-zinc-500">
-                                        加载模型资源...
+                                {isMobile ? (
+                                    <div className="flex flex-col items-center justify-center w-full h-full p-8 text-center bg-zinc-900/50">
+                                        <div className="p-4 rounded-full bg-yellow-500/10 mb-4">
+                                            <AlertTriangle size={32} className="text-yellow-500" />
+                                        </div>
+                                        <h3 className="text-xl font-bold mb-2">3D 模型预览已禁用</h3>
+                                        <p className="text-zinc-400 max-w-md">为了保证移动端页面的流畅度和兼容性，3D 模型渲染已在此设备上关闭。请在电脑端查看您的吉祥物 3D 效果。</p>
+                                        {team?.mascot2DUrl && (
+                                            <div className="mt-8 relative group">
+                                                <div className="absolute inset-0 bg-purple-500/20 blur-2xl group-hover:bg-purple-500/30 transition-all rounded-full"></div>
+                                                <img src={team.mascot2DUrl} alt="2D Preview" className="relative w-48 h-48 object-contain rounded-2xl border border-zinc-700 shadow-xl" />
+                                            </div>
+                                        )}
                                     </div>
-                                </model-viewer>
+                                ) : (
+                                    <model-viewer 
+                                        ref={modelViewerRef}
+                                        src={team?.mascot3DUrl} 
+                                        alt="3D Mascot"
+                                        camera-controls 
+                                        auto-rotate={autoRotate ? '' : null}
+                                        rotation-per-second="30deg"
+                                        interaction-prompt="none" 
+                                        shadow-intensity="1.5"
+                                        shadow-softness="0.8"
+                                        exposure={exposure}
+                                        tone-mapping="aces"
+                                        environment-image="neutral" 
+                                        min-camera-orbit="auto auto 5%"
+                                        max-camera-orbit="auto auto 200%"
+                                        style={{
+                                            width: '100%', 
+                                            height: '100%', 
+                                            backgroundImage: 'radial-gradient(#27272a 1px, transparent 1px)', 
+                                            backgroundSize: '24px 24px'
+                                        }}
+                                    >
+                                        <div slot="poster" className="flex items-center justify-center w-full h-full text-zinc-500">
+                                            加载模型资源...
+                                        </div>
+                                    </model-viewer>
+                                )}
 
                                 {/* 悬浮工具栏 */}
-                                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-zinc-900/90 backdrop-blur border border-zinc-700/50 rounded-full px-6 py-3 flex items-center gap-6 shadow-2xl transition-all hover:border-zinc-500">
-                                    
-                                    {/* 自动旋转 */}
-                                    <button 
-                                        onClick={() => setAutoRotate(!autoRotate)} 
-                                        className={`flex flex-col items-center gap-1 transition-colors ${autoRotate ? 'text-purple-400' : 'text-zinc-500 hover:text-white'}`}
-                                        title="自动旋转"
-                                    >
-                                        <RotateCw size={20} className={autoRotate ? 'animate-spin-slow' : ''}/>
-                                    </button>
+                                {!isMobile && (
+                                    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-zinc-900/90 backdrop-blur border border-zinc-700/50 rounded-full px-6 py-3 flex items-center gap-6 shadow-2xl transition-all hover:border-zinc-500">
+                                        {/* 自动旋转 */}
+                                        <button 
+                                            onClick={() => setAutoRotate(!autoRotate)} 
+                                            className={`flex flex-col items-center gap-1 transition-colors ${autoRotate ? 'text-purple-400' : 'text-zinc-500 hover:text-white'}`}
+                                            title="自动旋转"
+                                        >
+                                            <RotateCw size={20} className={autoRotate ? 'animate-spin-slow' : ''}/>
+                                        </button>
 
-                                    <div className="w-px h-6 bg-zinc-700"></div>
+                                        <div className="w-px h-6 bg-zinc-700"></div>
 
-                                    {/* 重置视角 */}
-                                    <button 
-                                        onClick={handleResetCamera} 
-                                        className="flex flex-col items-center gap-1 text-zinc-500 hover:text-white transition-colors"
-                                        title="重置视角"
-                                    >
-                                        <Move3d size={20}/>
-                                    </button>
+                                        {/* 重置视角 */}
+                                        <button 
+                                            onClick={handleResetCamera} 
+                                            className="flex flex-col items-center gap-1 text-zinc-500 hover:text-white transition-colors"
+                                            title="重置视角"
+                                        >
+                                            <Move3d size={20}/>
+                                        </button>
 
-                                    <div className="w-px h-6 bg-zinc-700"></div>
+                                        <div className="w-px h-6 bg-zinc-700"></div>
 
-                                    {/* 亮度调节 */}
-                                    <div className="flex items-center gap-3 group/exp">
-                                        <Sun size={20} className="text-zinc-500 group-hover/exp:text-yellow-400 transition-colors"/>
-                                        <input 
-                                            type="range" 
-                                            min="0.5" max="2" step="0.1" 
-                                            value={exposure} 
-                                            onChange={e => setExposure(parseFloat(e.target.value))}
-                                            className="w-20 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-purple-500 hover:accent-purple-400"
-                                            title={`曝光度: ${exposure}`}
-                                        />
+                                        {/* 亮度调节 */}
+                                        <div className="flex items-center gap-3 group/exp">
+                                            <Sun size={20} className="text-zinc-500 group-hover/exp:text-yellow-400 transition-colors"/>
+                                            <input 
+                                                type="range" 
+                                                min="0.5" max="2" step="0.1" 
+                                                value={exposure} 
+                                                onChange={e => setExposure(parseFloat(e.target.value))}
+                                                className="w-20 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-purple-500 hover:accent-purple-400"
+                                                title={`曝光度: ${exposure}`}
+                                            />
+                                        </div>
+
+                                        <div className="w-px h-6 bg-zinc-700"></div>
+
+                                        {/* 重新生成按钮 (如果用户不喜欢 3D 结果) */}
+                                        <button 
+                                            onClick={() => {
+                                                if(window.confirm('确定要放弃当前模型并重新开始吗？模型将不会被删除，但你需要重新消耗额度来生成新的。')) {
+                                                    setStatus('READY');
+                                                }
+                                            }} 
+                                            className="flex flex-col items-center gap-1 text-zinc-500 hover:text-red-400 transition-colors"
+                                            title="重新开始"
+                                        >
+                                            <RefreshCw size={20}/>
+                                        </button>
                                     </div>
-
-                                    <div className="w-px h-6 bg-zinc-700"></div>
-
-                                    {/* 重新生成按钮 (如果用户不喜欢 3D 结果) */}
-                                    <button 
-                                        onClick={() => {
-                                            if(window.confirm('确定要放弃当前模型并重新开始吗？模型将不会被删除，但你需要重新消耗额度来生成新的。')) {
-                                                setStatus('READY');
-                                            }
-                                        }} 
-                                        className="flex flex-col items-center gap-1 text-zinc-500 hover:text-red-400 transition-colors"
-                                        title="重新开始"
-                                    >
-                                        <RefreshCw size={20}/>
-                                    </button>
-                                </div>
-
-                                {/* 右上角下载按钮 */}
-                                <div className="absolute top-6 right-6 flex gap-3">
-                                    <div className="px-3 py-1.5 bg-black/60 backdrop-blur rounded text-xs text-zinc-400 border border-zinc-800 pointer-events-none">
-                                        左键旋转 • 右键平移 • 滚轮缩放
-                                    </div>
-                                    <a 
-                                        href={team.mascot3DUrl} 
-                                        download 
-                                        className="flex items-center gap-2 px-4 py-1.5 bg-white text-black font-bold rounded hover:bg-zinc-200 transition-colors shadow-lg"
-                                    >
-                                        <Download size={16}/> 下载 .GLB
-                                    </a>
-                                </div>
+                                )}
                             </div>
                         </div>
                     )}

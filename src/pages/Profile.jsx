@@ -13,6 +13,9 @@ import ShowcaseEditModal from '../components/modals/ShowcaseEditModal';
 export default function Profile() {
   const { user, updateUserProfile, checkNameAvailability } = useLeague();
   const navigate = useNavigate();
+  
+  // 移动端简单检测
+  const isMobile = window.innerWidth < 768 || /Mobi|Android|iPhone/i.test(navigator.userAgent);
 
   // --- 状态定义 ---
   const [teamList, setTeamList] = useState([]);
@@ -187,16 +190,23 @@ export default function Profile() {
             <div className="relative w-full max-w-3xl aspect-video bg-zinc-900 border border-zinc-700 rounded-2xl overflow-hidden shadow-2xl flex flex-col">
                 <button onClick={onClose} className="absolute top-4 right-4 z-10 p-2 bg-black/50 text-white rounded-full hover:bg-white/20"><X size={20}/></button>
                 <div className="flex-1 bg-gradient-to-b from-zinc-800 to-black relative">
-                    <model-viewer
-                        src={modelUrl}
-                        camera-controls
-                        auto-rotate
-                        shadow-intensity="1.5"
-                        style={{ width: '100%', height: '100%' }}
-                    ></model-viewer>
+                    {isMobile ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-zinc-500">
+                            <Box size={48} className="mb-4 opacity-20"/>
+                            <p>移动端 3D 预览已禁用</p>
+                        </div>
+                    ) : (
+                        <model-viewer
+                            src={modelUrl}
+                            camera-controls
+                            auto-rotate
+                            shadow-intensity="1.5"
+                            style={{ width: '100%', height: '100%' }}
+                        ></model-viewer>
+                    )}
                     <div className="absolute bottom-4 left-4 pointer-events-none">
                         <h3 className="text-2xl font-black text-white drop-shadow-md">{name}</h3>
-                        <p className="text-zinc-400 text-xs mt-1">* 拖拽旋转 / 滚轮缩放</p>
+                        <p className="text-zinc-400 text-xs mt-1">* {!isMobile ? "拖拽旋转 / 滚轮缩放" : "请在 PC 端查看 3D 效果"}</p>
                     </div>
                 </div>
             </div>
@@ -388,7 +398,13 @@ export default function Profile() {
                                         <div className="absolute top-2 left-2 z-10 bg-purple-600/20 text-purple-400 text-[10px] px-2 py-0.5 rounded border border-purple-500/30 font-bold uppercase backdrop-blur-sm flex items-center">
                                             <Box size={10} className="mr-1"/> Team Mascot
                                         </div>
-                                        <model-viewer src={teamInfo.mascot3DUrl} auto-rotate camera-controls shadow-intensity="1" interaction-prompt="none" style={{width: '100%', height: '100%'}}></model-viewer>
+                                        {isMobile ? (
+                                            <div className="w-full h-full flex items-center justify-center text-zinc-600 text-[10px] bg-black/30">
+                                                移动端 3D 已禁用
+                                            </div>
+                                        ) : (
+                                            <model-viewer src={teamInfo.mascot3DUrl} auto-rotate camera-controls shadow-intensity="1" interaction-prompt="none" style={{width: '100%', height: '100%'}}></model-viewer>
+                                        )}
                                     </div>
                                 )}
                                 <button onClick={handleUnbind} className="absolute top-6 right-6 text-zinc-500 hover:text-red-500 transition-colors p-2" title="退出战队"><LogOut size={16}/></button>

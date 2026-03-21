@@ -7,6 +7,10 @@ import { Tv, Calendar, Map, Trophy, Layers, Loader2 } from 'lucide-react';
 const MatchMascot = ({ url, side }) => {
   if (!url) return null;
 
+  // 移动端禁用 3D 模型
+  const isMobile = window.innerWidth < 768 || /Mobi|Android|iPhone/i.test(navigator.userAgent);
+  if (isMobile) return null;
+
   // 左侧战队(Left)：摄像机放在左边(-35deg)，看着右边的对手
   // 右侧战队(Right)：摄像机放在右边(35deg)，看着左边的对手
   const cameraOrbit = side === 'left' ? '-35deg 75deg 105%' : '35deg 75deg 105%';

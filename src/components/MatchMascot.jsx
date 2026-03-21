@@ -4,6 +4,10 @@ import React from 'react';
 export default function MatchMascot({ url, side }) {
   if (!url) return null;
 
+  // 移动端禁用 3D 吉祥物以防止加载缓慢或崩溃
+  const isMobile = window.innerWidth < 768 || /Mobi|Android|iPhone/i.test(navigator.userAgent);
+  if (isMobile) return null;
+
   // 🎥 摄像机角度控制朝向
   // 假设模型默认是正脸朝前 (0deg)
   // Left Side (Team A): 我们想看它的侧脸，让它看起来面向右边 -> 摄像机移到它的左侧 (-45deg)

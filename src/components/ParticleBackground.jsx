@@ -28,6 +28,13 @@ function getDotTexture() {
 function GalaxyField() {
   const { playerStats } = useLeague();
   
+  // 移动端简单检测 - 如果是移动端直接返回 null，不渲染复杂的 3D 粒子
+  const isMobile = useMemo(() => {
+    return window.innerWidth < 768 || /Mobi|Android|iPhone/i.test(navigator.userAgent);
+  }, []);
+
+  if (isMobile) return null;
+
   // [关键修改] 使用 groupRef 来控制整体旋转
   const groupRef = useRef(); 
   
@@ -196,6 +203,19 @@ function GalaxyField() {
 }
 
 export default function ParticleBackground() {
+  // 移动端完全禁用 Canvas 粒子背景以提高兼容性
+  const isMobile = typeof window !== 'undefined' && 
+    (window.innerWidth < 768 || /Mobi|Android|iPhone/i.test(navigator.userAgent));
+
+  if (isMobile) {
+    return (
+      <div className="fixed inset-0 z-0 bg-black">
+        {/* 移动端只留纯黑背景或渐变，不渲染 3D */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-zinc-950 to-black/40 pointer-events-none"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-0 bg-black">
       <Canvas 

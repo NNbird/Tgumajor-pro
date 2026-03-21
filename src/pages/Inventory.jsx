@@ -6,6 +6,10 @@ import AssetGenerationModal from '../components/modals/AssetGenerationModal';
 
 export default function Inventory() {
   const { user } = useLeague();
+  
+  // 移动端简单检测
+  const isMobile = window.innerWidth < 768 || /Mobi|Android|iPhone/i.test(navigator.userAgent);
+
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showGenModal, setShowGenModal] = useState(false);
@@ -97,14 +101,21 @@ export default function Inventory() {
           
           {/* Left: 3D Viewer Area */}
           <div className="flex-1 bg-gradient-to-b from-zinc-800 to-black relative">
-             <model-viewer
-                src={modelUrl}
-                camera-controls
-                auto-rotate={!isEditing} // 编辑时停止旋转，防晕
-                shadow-intensity="1.5"
-                style={{ width: '100%', height: '100%' }}
-                alt="3D Model"
-             ></model-viewer>
+             {isMobile ? (
+                 <div className="w-full h-full flex flex-col items-center justify-center text-zinc-500">
+                     <Cuboid size={48} className="mb-4 opacity-20"/>
+                     <p>移动端 3D 预览已禁用</p>
+                 </div>
+             ) : (
+                 <model-viewer
+                    src={modelUrl}
+                    camera-controls
+                    auto-rotate={!isEditing} // 编辑时停止旋转，防晕
+                    shadow-intensity="1.5"
+                    style={{ width: '100%', height: '100%' }}
+                    alt="3D Model"
+                 ></model-viewer>
+             )}
              <div className="absolute bottom-6 left-6 pointer-events-none">
                 <div className="flex items-center gap-2 mb-2">
                     <span className={`text-[10px] font-bold border px-2 py-0.5 rounded uppercase tracking-wider ${colorClass}`}>
