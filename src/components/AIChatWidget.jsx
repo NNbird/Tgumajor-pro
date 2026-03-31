@@ -6,7 +6,7 @@ export default function AIChatWidget() {
   const [messages, setMessages] = useState([
     { 
       sender: 'ai', 
-      text: '你好！我是接入了通义千问的 TGU 赛事助手。\n我可以读取实时数据库，你可以问我：\n\n1. "Donk 在秋季赛表现如何？"\n2. "刚才 TGU vs idk 谁赢了？"\n3. "总结一下目前的赛事状况"' 
+      text: '你好！我是接入了 Google Gemini 的 TGU 赛事助手。\n我可以读取实时数据库，你可以问我：\n\n1. "Donk 在秋季赛表现如何？"\n2. "刚才 TGU vs idk 谁赢了？"\n3. "总结一下目前的赛事状况"' 
     }
   ]);
   const [input, setInput] = useState('');
@@ -83,7 +83,7 @@ export default function AIChatWidget() {
                </div>
                <div>
                  <div className="font-bold text-white text-sm">TGU AI Assistant</div>
-                 <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Powered by Qwen</div>
+                 <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Powered by Gemini</div>
                </div>
              </div>
              <button onClick={() => setIsOpen(false)} className="text-zinc-500 hover:text-white transition-colors p-1 hover:bg-white/10 rounded">

@@ -41,8 +41,8 @@ const DB_FILE = path.join(__dirname, 'db.json');
 
 
 // ==========================================
-// 🔑 阿里云百炼 API 配置区域
-const DASHSCOPE_API_KEY = "sk-e0247e35350f42eb9cc00423f3ebfc44"; 
+// 🔑 Google Gemini API 配置区域
+const GEMINI_API_KEY = "AIzaSyCLGzXY0_MAOQmiz9laDhwY2ymPLkfGp0E"; 
 // ==========================================
 
 const app = express();
@@ -526,19 +526,22 @@ app.post('/api/chat', async (req, res) => {
     };
 
     const response = await axios.post(
-      'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+      'https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions',
       {
-        model: 'qwen-plus',
+        model: 'gemini-1.5-flash',
         messages: [
           { role: 'system', content: `你是一个CS2赛事助手。数据：${JSON.stringify(contextData)}` },
           { role: 'user', content: message }
         ],
         temperature: 0.7
       },
-      { headers: { 'Authorization': `Bearer ${DASHSCOPE_API_KEY}`, 'Content-Type': 'application/json' } }
+      { headers: { 'Authorization': `Bearer ${GEMINI_API_KEY}`, 'Content-Type': 'application/json' } }
     );
     res.json({ reply: response.data.choices[0].message.content });
-  } catch (error) { res.status(500).json({ error: 'AI 服务暂时不可用' }); }
+  } catch (error) { 
+    console.error("Gemini Error:", error.response?.data || error.message);
+    res.status(500).json({ error: 'AI 服务暂时不可用' }); 
+  }
 });
 
 
