@@ -19,7 +19,7 @@ export default function TeamDetailModal({ isOpen, onClose, teamName, currentUser
   const fetchMembers = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('http://localhost:3001/api/team/members', { params: { teamName } });
+      const res = await axios.get('/api/team/members', { params: { teamName } });
       if (res.data.success) {
         setMembers(res.data.members);
       }
@@ -39,7 +39,7 @@ export default function TeamDetailModal({ isOpen, onClose, teamName, currentUser
   const handleApprove = async (id, action) => {
     if (!window.confirm(`确定要 ${action === 'APPROVED' ? '通过' : '拒绝'} 该申请吗？`)) return;
     try {
-      const res = await axios.post('http://localhost:3001/api/team/member/approve', {
+      const res = await axios.post('/api/team/member/approve', {
         currentUserId: currentUser.id,
         targetMembershipId: id,
         action

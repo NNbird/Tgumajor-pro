@@ -42,7 +42,7 @@ const DB_FILE = path.join(__dirname, 'db.json');
 
 // ==========================================
 // 🔑 Google Gemini API 配置区域
-const GEMINI_API_KEY = "AIzaSyCLGzXY0_MAOQmiz9laDhwY2ymPLkfGp0E"; 
+const GEMINI_API_KEY = "*************************"; 
 // ==========================================
 
 const app = express();
@@ -71,6 +71,36 @@ const storage = multer.diskStorage({
   }
 });
 const upload = multer({ storage: storage });
+
+// --- [新增] 规则书文件处理 ---
+// 需要安装 pdf-parse: npm install pdf-parse
+import pdf from 'pdf-parse';
+
+app.post('/api/upload-rulebook', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+  try {
+    const dataBuffer = await fs.readFile(req.file.path);
+    let content = '';
+
+    if (req.file.mimetype === 'application/pdf') {
+      const data = await pdf(dataBuffer);
+      content = data.text;
+    } else if (req.file.mimetype.startsWith('text/')) {
+      content = dataBuffer.toString();
+    } else {
+      return res.status(400).json({ error: 'Unsupported file type' });
+    }
+
+    // [注意] 这里的“图文”提取比较复杂，目前先提取文字
+    // 如果需要提取图片，建议使用专门的服务或更复杂的库
+    
+    res.json({ success: true, content });
+  } catch (e) {
+    console.error("Upload Rulebook Error:", e);
+    res.status(500).json({ error: '文件解析失败' });
+  }
+});
 
 // --- [修改] 密码强度校验 (3/4 规则) ---
 function checkPasswordStrength(pwd) {
@@ -286,7 +316,7 @@ app.post('/api/sync', async (req, res) => {
           for (const t of data) {
             const { stages, id, ...rest } = t;
 
-            // 1. 安全更新或创建赛事 (保留 registrationStatus)
+            // 1. 安全更新或创建赛事 (保留 registrationStatus, rulebook)
             await tx.tournament.upsert({
               where: { id: id },
               update: { ...rest }, 
@@ -1641,7 +1671,7 @@ app.post('/api/pickem/admin/calculate-all-scores', async (req, res) => {
             if (event.type === 'SWISS') {
               // 瑞士轮计算逻辑
               const checkTeamStatus = (teamId, type) => {
-                const team = event.teams.find(t => t.id === teamId);
+                const team = teams.find(t => t.id === teamId);
                 if (!team) return false;
                 if (type === '3-0') return team.wins === 3 && team.losses === 0;
                 if (type === '0-3') return team.wins === 0 && team.losses === 3;
@@ -1649,20 +1679,20 @@ app.post('/api/pickem/admin/calculate-all-scores', async (req, res) => {
                 return false;
               };
               
-              const pick30 = parseJsonArray(pick.pick30);
-              const pick03 = parseJsonArray(pick.pick03);
-              const pickAdvance = parseJsonArray(pick.pickAdvance);
-              
-              pick30.forEach(id => { if(checkTeamStatus(id, '3-0')) correctCount++; });
-              pick03.forEach(id => { if(checkTeamStatus(id, '0-3')) correctCount++; });
-              pickAdvance.forEach(id => { if(checkTeamStatus(id, 'adv')) correctCount++; });
-              
-            } else if (event.type === 'SINGLE_ELIM') {
-              // 淘汰赛计算逻辑
-              const bracketPicks = pick.bracketPicks || {};
+              if (pick.pick30) {
+                picks.pick30.forEach(id => { if(checkTeamStatus(id, '3-0')) correctCount++; });
+              }
+              if (pick.pick03) {
+                picks.pick03.forEach(id => { if(checkTeamStatus(id, '0-3')) correctCount++; });
+              }
+              if (pick.pickAdvance) {
+                picks.pickAdvance.forEach(id => { if(checkTeamStatus(id, 'adv')) correctCount++; });
+              }
+            } else {
+              // 单败淘汰赛正确数计算
               const checkBracketWin = (slotId, matchGroup) => {
-                const match = event.matches.find(m => m.matchGroup === matchGroup);
-                const pickId = bracketPicks[slotId];
+                const match = matches.find(m => m.matchGroup === matchGroup);
+                const pickId = pick.bracketPicks?.[slotId];
                 return match?.isFinished && match.winnerId && pickId && String(match.winnerId) === String(pickId);
               };
               
@@ -1753,13 +1783,13 @@ app.post('/api/pickem/update-scores', async (req, res) => {
                 };
                 
                 if (pick.pick30) {
-                    pick.pick30.forEach(id => { if(checkTeamStatus(id, '3-0')) correctCount++; });
+                    picks.pick30.forEach(id => { if(checkTeamStatus(id, '3-0')) correctCount++; });
                 }
                 if (pick.pick03) {
-                    pick.pick03.forEach(id => { if(checkTeamStatus(id, '0-3')) correctCount++; });
+                    picks.pick03.forEach(id => { if(checkTeamStatus(id, '0-3')) correctCount++; });
                 }
                 if (pick.pickAdvance) {
-                    pick.pickAdvance.forEach(id => { if(checkTeamStatus(id, 'adv')) correctCount++; });
+                    picks.pickAdvance.forEach(id => { if(checkTeamStatus(id, 'adv')) correctCount++; });
                 }
             } else {
                 // 单败淘汰赛正确数计算

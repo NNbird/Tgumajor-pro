@@ -8,6 +8,7 @@ export default function Register() {
   
   // --- 赛事选择状态 ---
   const [selectedTourId, setSelectedTourId] = useState('');
+  const [showRulebook, setShowRulebook] = useState(false);
 
   // --- 管理员选人状态 ---
   const [selectedAgent, setSelectedAgent] = useState(null);
@@ -169,18 +170,30 @@ export default function Register() {
       {/* 赛事选择 */}
       <div className="flex flex-col items-center gap-4 mb-8 pt-8">
         <h2 className="text-2xl font-black text-white uppercase">选择报名赛事</h2>
-        <div className="relative z-20 w-full max-w-md">
-           <select 
-             value={selectedTourId} 
-             onChange={e => setSelectedTourId(e.target.value)}
-             className="w-full bg-zinc-900 border-2 border-yellow-500 text-white text-lg font-bold p-3 rounded shadow-[0_0_15px_rgba(234,179,8,0.3)] focus:outline-none text-center appearance-none"
-           >
-             {tournaments.map(t => (
-               <option key={t.id} value={t.id}>
-                 {t.name} {t.registrationStatus === 'OPEN' ? '(报名中)' : t.registrationStatus === 'CLOSED' ? '(已截止)' : '(未开始)'}
-               </option>
-             ))}
-           </select>
+        <div className="flex items-center gap-2 w-full max-w-md">
+          <div className="relative z-20 flex-1">
+             <select 
+               value={selectedTourId} 
+               onChange={e => setSelectedTourId(e.target.value)}
+               className="w-full bg-zinc-900 border-2 border-yellow-500 text-white text-lg font-bold p-3 rounded shadow-[0_0_15px_rgba(234,179,8,0.3)] focus:outline-none text-center appearance-none"
+             >
+               {tournaments.map(t => (
+                 <option key={t.id} value={t.id}>
+                   {t.name} {t.registrationStatus === 'OPEN' ? '(报名中)' : t.registrationStatus === 'CLOSED' ? '(已截止)' : '(未开始)'}
+                 </option>
+               ))}
+             </select>
+          </div>
+          {currentTournament?.rulebook && (
+            <button 
+              onClick={() => setShowRulebook(true)}
+              className="bg-yellow-500 text-black p-3.5 rounded font-black hover:bg-yellow-400 transition-all flex items-center gap-2 group whitespace-nowrap"
+              title="查看规则书"
+            >
+              <BookOpen size={20} className="group-hover:scale-110 transition-transform"/>
+              <span className="hidden md:inline">规则书</span>
+            </button>
+          )}
         </div>
         {!isRegistrationOpen && (
           <div className="bg-red-900/30 border border-red-500/50 text-red-200 px-6 py-4 rounded-lg flex items-center max-w-xl text-center mt-4">
@@ -192,6 +205,36 @@ export default function Register() {
           </div>
         )}
       </div>
+
+      {/* 规则书显示弹窗 */}
+      {showRulebook && currentTournament?.rulebook && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in">
+           <div className="bg-zinc-900 border border-zinc-700 w-full max-w-3xl rounded-lg flex flex-col h-[85vh] shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+              <div className="p-5 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50 backdrop-blur rounded-t-lg">
+                <div className="flex items-center gap-3">
+                  <div className="bg-yellow-500 p-2 rounded shadow-lg shadow-yellow-500/20">
+                    <BookOpen className="text-black" size={20}/>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-white uppercase tracking-wider">{currentTournament.name}</h3>
+                    <p className="text-[10px] text-yellow-500 font-bold uppercase">Official Tournament Rulebook</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowRulebook(false)} className="text-zinc-500 hover:text-white transition-colors p-2 hover:bg-zinc-800 rounded-full"><X size={24}/></button>
+              </div>
+              <div className="flex-1 p-8 overflow-y-auto custom-scrollbar bg-black/30">
+                 <div className="prose prose-invert prose-yellow max-w-none">
+                    <div className="whitespace-pre-wrap text-zinc-300 leading-relaxed font-sans text-lg">
+                      {currentTournament.rulebook}
+                    </div>
+                 </div>
+              </div>
+              <div className="p-4 border-t border-zinc-800 flex justify-center bg-zinc-900/50 rounded-b-lg">
+                <button onClick={() => setShowRulebook(false)} className="px-12 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-black rounded uppercase tracking-widest transition-all">关闭窗口</button>
+              </div>
+           </div>
+        </div>
+      )}
 
       {/* 内容区域 */}
       {isRegistrationOpen && (

@@ -1,12 +1,45 @@
-import React, { useState } from 'react';
-import { Edit, X, Plus, Trash2, Calendar } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Edit, X, Plus, Trash2, Calendar, FileText, Upload, Check, Loader2, FileUp } from 'lucide-react';
 
 export default function TournamentEditModal({ tournament, onClose, onSave }) {
   const [data, setData] = useState(tournament?.id ? tournament : {
     name: '',
     dateRange: '',
-    stages: [] 
+    stages: [],
+    rulebook: null 
   });
+  const [isUploading, setIsUploading] = useState(false);
+  const [editingRulebook, setEditingRulebook] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/upload-rulebook', {
+        method: 'POST',
+        body: formData,
+      });
+      const result = await res.json();
+      if (result.success) {
+        setData({ ...data, rulebook: result.content });
+        setEditingRulebook(true); 
+      } else {
+        alert('文件上传失败: ' + (result.error || '未知错误'));
+      }
+    } catch (err) {
+      console.error(err);
+      alert('连接服务器失败');
+    } finally {
+      setIsUploading(false);
+      e.target.value = ''; 
+    }
+  };
 
   const addStage = () => {
     setData({
@@ -79,6 +112,65 @@ export default function TournamentEditModal({ tournament, onClose, onSave }) {
                     </div>
                 ))}
              </div>
+          </div>
+
+          <div className="bg-zinc-950 p-4 border border-zinc-800 rounded space-y-4">
+            <div className="flex justify-between items-center">
+              <label className="text-xs text-zinc-500 uppercase font-bold">赛事规则书 (Rulebook)</label>
+              {!data.rulebook ? (
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="text-xs bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 px-3 py-1.5 rounded flex items-center border border-yellow-500/30 transition-colors"
+                >
+                  {isUploading ? <Loader2 size={14} className="mr-1 animate-spin"/> : <Upload size={14} className="mr-1"/>}
+                  上传规则书 (PDF/Text)
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                   <button onClick={() => setEditingRulebook(true)} className="text-xs bg-zinc-800 hover:bg-zinc-700 text-white px-2 py-1 rounded flex items-center"><Edit size={12} className="mr-1"/> 修改内容</button>
+                   <button onClick={() => setData({...data, rulebook: null})} className="text-xs bg-red-900/20 hover:bg-red-900/40 text-red-500 px-2 py-1 rounded flex items-center border border-red-500/20"><Trash2 size={12} className="mr-1"/> 删除</button>
+                </div>
+              )}
+            </div>
+            
+            <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".pdf,.txt" />
+
+            {data.rulebook && !editingRulebook && (
+               <div className="bg-black/50 p-3 rounded border border-zinc-800 max-h-32 overflow-hidden relative group">
+                  <div className="text-xs text-zinc-400 whitespace-pre-wrap line-clamp-4">{data.rulebook}</div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end justify-center pb-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-[10px] text-zinc-500 font-bold uppercase">已上传并提取内容</span>
+                  </div>
+               </div>
+            )}
+
+            {editingRulebook && (
+              <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[80] flex items-center justify-center p-4">
+                <div className="bg-zinc-900 border border-zinc-700 w-full max-w-4xl rounded-lg flex flex-col h-[80vh]">
+                  <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
+                    <h4 className="text-white font-bold flex items-center"><FileText className="mr-2 text-yellow-500" size={18}/> 编辑规则书内容</h4>
+                    <button onClick={() => setEditingRulebook(false)} className="text-zinc-500 hover:text-white"><X size={20}/></button>
+                  </div>
+                  <div className="flex-1 p-4 overflow-hidden flex flex-col gap-4">
+                    <div className="text-xs text-zinc-500">
+                      提示：规则书内容将以纯文本或 Markdown 形式展示。您可以根据需要进行格式化调整。
+                    </div>
+                    <textarea 
+                      value={data.rulebook || ''} 
+                      onChange={e => setData({...data, rulebook: e.target.value})}
+                      className="flex-1 bg-black border border-zinc-700 text-zinc-300 p-4 rounded focus:border-yellow-500 outline-none font-mono text-sm resize-none custom-scrollbar"
+                      placeholder="在这里输入或修改规则书内容..."
+                    />
+                  </div>
+                  <div className="p-4 border-t border-zinc-800 flex justify-end">
+                    <button onClick={() => setEditingRulebook(false)} className="px-6 py-2 bg-yellow-500 text-black font-bold rounded flex items-center hover:bg-yellow-400 transition-colors">
+                      <Check size={18} className="mr-2"/> 完成编辑
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

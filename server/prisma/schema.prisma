@@ -28,6 +28,7 @@ model Tournament {
   dateRange          String
   // 👇 [新增] 必须加这行，否则状态存不进去！
   registrationStatus String   @default("NOT_STARTED") 
+  rulebook           String?  @db.LongText
   
   stages             Stage[]  
   matches            Match[]  
