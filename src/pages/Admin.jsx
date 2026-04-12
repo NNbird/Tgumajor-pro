@@ -15,6 +15,7 @@ import PlayerDetailModal from '../components/modals/PlayerDetailModal';
 import TournamentEditModal from '../components/modals/TournamentEditModal';
 import { processFile } from '../utils/dataParser';
 import TeamManager from '../components/admin/TeamManager';
+import * as XLSX from 'xlsx';
 
 
 export default function Admin() {
@@ -84,6 +85,86 @@ const handleImportTeam = () => {
         name: '', tag: '', contact: '', status: 'approved',
         members: Array(5).fill({ role: 'Rifler', score: '' })
     });
+};
+
+// 【新增】一键导出战队信息
+const handleExportTeams = () => {
+    const selectedTour = tournaments.find(t => t.id === adminTeamTourFilter);
+    if (!selectedTour) return alert("请先选择赛事");
+    
+    const tourTeams = teams.filter(t => t.tournamentId === adminTeamTourFilter);
+    if (tourTeams.length === 0) return alert("当前赛事暂无战队数据");
+
+    // Sheet 1: 选手信息
+    const playerRows = [];
+    tourTeams.forEach(team => {
+        // 遍历所有成员（包括替补）
+        team.members.forEach(m => {
+            if (m.id) { // 只有填写了名字的才导出
+                playerRows.push({
+                    '选手姓名': m.id,
+                    '所属战队': team.name,
+                    'SteamID': m.steamId || '',
+                    '专业/班级': m.class || '',
+                    '学号': m.studentId || '',
+                    'Elo分': m.score || '',
+                    '位置': m.role || ''
+                });
+            }
+        });
+    });
+
+    // Sheet 2: 战队信息
+    const teamRows = tourTeams.map(team => {
+        let statusText = '未知';
+        if (team.status === 'approved') statusText = '🟢 已通过';
+        else if (team.status === 'pending') statusText = '🟡 待审批';
+        else if (team.status === 'rejected') statusText = '🔴 不通过';
+
+        return {
+            '战队名称': team.name,
+            '完美数字ID': team.digitalId || '',
+            '战队简称(TAG)': team.tag || '',
+            '联系方式': team.contact || '',
+            '战队均分(Avg)': team.avgElo || '',
+            '审批状态': statusText,
+            '备注': team.status === 'rejected' ? (team.rejectReason || '未通过') : (team.status === 'pending' ? '等待审核' : '资料完整')
+        };
+    });
+
+    // 创建工作簿
+    const wb = XLSX.utils.book_new();
+    
+    // 转换为工作表
+    const wsPlayers = XLSX.utils.json_to_sheet(playerRows);
+    const wsTeams = XLSX.utils.json_to_sheet(teamRows);
+
+    // 设置列宽以保证美观
+    wsPlayers['!cols'] = [
+        { wch: 15 }, // 姓名
+        { wch: 20 }, // 战队
+        { wch: 25 }, // SteamID
+        { wch: 20 }, // 专业
+        { wch: 20 }, // 学号
+        { wch: 10 }, // Elo
+        { wch: 12 }  // 位置
+    ];
+    wsTeams['!cols'] = [
+        { wch: 20 }, // 战队名
+        { wch: 15 }, // 数字ID
+        { wch: 15 }, // TAG
+        { wch: 20 }, // 联系方式
+        { wch: 12 }, // 均分
+        { wch: 15 }, // 状态
+        { wch: 30 }  // 备注
+    ];
+
+    // 添加到工作簿
+    XLSX.utils.book_append_sheet(wb, wsPlayers, "选手信息明细");
+    XLSX.utils.book_append_sheet(wb, wsTeams, "战队概况审批表");
+
+    // 导出文件
+    XLSX.writeFile(wb, `${selectedTour.name}_报名统计.xlsx`);
 };
 
 
@@ -804,12 +885,21 @@ const handleDeleteGroupedPlayer = (player) => {
                       </span>
                   </div>
                   
-                  <button 
-                      onClick={handleImportTeam}
-                      className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-sm text-sm font-bold flex items-center shadow-lg transition-all"
-                  >
-                      <Download size={16} className="mr-2"/> 管理员导入战队
-                  </button>
+                  <div className="flex gap-2">
+                    <button 
+                        onClick={handleExportTeams}
+                        className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-sm text-sm font-bold flex items-center shadow-lg transition-all"
+                    >
+                        <FileSpreadsheet size={16} className="mr-2"/> 一键导出战队成员
+                    </button>
+
+                    <button 
+                        onClick={handleImportTeam}
+                        className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-sm text-sm font-bold flex items-center shadow-lg transition-all"
+                    >
+                        <Download size={16} className="mr-2"/> 管理员导入战队
+                    </button>
+                  </div>
                </div>
 
                {/* 列表区域 */}
