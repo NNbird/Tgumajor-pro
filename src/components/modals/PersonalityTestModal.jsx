@@ -540,7 +540,7 @@ function ResultView({ userScores, topMatches, aiAnalysis, onAiGenerated, onResta
     };
   }, [entryInfo, tournaments, teams]);
 
-  const API_KEY = '#############################';
+  const API_KEY = '###################################';
   const MODEL_NAME = 'gemini-3-flash-preview'; // 降级到更稳定的 flash 模型，确保生成成功率
 
   const fetchAIAnalysis = async () => {
