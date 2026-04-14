@@ -395,6 +395,14 @@ export default function PickemManager() {
                                 </label>
                             </div>
 
+                            <div className="flex gap-4">
+                                <label className={`flex items-center gap-2 text-xs p-2 rounded border cursor-pointer ${initForm.type === 'DOUBLE_ELIM_16' ? 'bg-purple-500/20 border-purple-500 text-purple-500' : 'border-zinc-700 text-zinc-400'}`}>
+                                    <input type="radio" name="format" checked={initForm.type === 'DOUBLE_ELIM_16'} onChange={() => setInitForm({...initForm, type: 'DOUBLE_ELIM_16'})} className="hidden"/>
+                                    <div className={`w-3 h-3 rounded-full border ${initForm.type === 'DOUBLE_ELIM_16' ? 'bg-purple-500 border-purple-500' : 'border-zinc-500'}`}></div>
+                                    双败淘汰 (16队)
+                                </label>
+                            </div>
+
                             <div className="flex gap-2">
                                 <select className="bg-black border border-zinc-700 text-white p-2 rounded text-xs w-1/2 outline-none"
                                     value={initForm.tourId}
@@ -576,6 +584,11 @@ export default function PickemManager() {
                                     <input type="radio" checked={editForm.type === 'SINGLE_ELIM'} onChange={() => setEditForm({...editForm, type: 'SINGLE_ELIM'})} className="hidden"/>
                                     <div className={`w-3 h-3 rounded-full border ${editForm.type === 'SINGLE_ELIM' ? 'bg-cyan-500 border-cyan-500' : 'border-zinc-500'}`}></div>
                                     单败淘汰 (8队)
+                                </label>
+                                <label className={`flex items-center gap-2 text-xs p-2 rounded border cursor-pointer ${editForm.type === 'DOUBLE_ELIM_16' ? 'bg-purple-500/20 border-purple-500 text-purple-500' : 'border-zinc-700 text-zinc-400'}`}>
+                                    <input type="radio" checked={editForm.type === 'DOUBLE_ELIM_16'} onChange={() => setEditForm({...editForm, type: 'DOUBLE_ELIM_16'})} className="hidden"/>
+                                    <div className={`w-3 h-3 rounded-full border ${editForm.type === 'DOUBLE_ELIM_16' ? 'bg-purple-500 border-purple-500' : 'border-zinc-500'}`}></div>
+                                    双败淘汰 (16队)
                                 </label>
                             </div>
 

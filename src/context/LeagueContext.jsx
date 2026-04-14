@@ -463,6 +463,8 @@ const saveHistoryTournament = (d) => {
         if (data.success) {
             setUser(data.user);
             localStorage.setItem('currentUser', JSON.stringify(data.user));
+            // [新增] 同步更新本地的 usersDB，确保管理员能即时看到测试结果变化
+            setUsersDB(prev => prev.map(u => u.id === data.user.id ? { ...u, ...data.user } : u));
         }
         return data;
     } catch (e) { return { success: false, message: "更新请求失败" }; }
@@ -493,6 +495,7 @@ const value = {
     teams, saveTeam, adminUpdateTeam, deleteTeam, adminDeleteTeam: deleteTeam,
     matches, updateMatch, deleteMatch, reorderMatches, importMatches, deleteMatches, batchUpdateMatches,announcements, saveAnnouncement, deleteAnnouncement,
     playerStats, importPlayers, updateSinglePlayer, deletePlayer, deletePlayers,
+    usersDB, // [新增] 导出用户数据库
     freeAgents, saveFreeAgent, deleteFreeAgent,savePlayerStat,updateUserProfile,checkNameAvailability,
     feedbacks, addFeedback, deleteFeedback,clearAllPlayers,newsList, saveNews, deleteNews, togglePinNews,
     

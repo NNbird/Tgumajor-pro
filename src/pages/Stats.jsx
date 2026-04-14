@@ -2,15 +2,18 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useLeague } from '../context/LeagueContext';
 import { Trophy, Search, Target, HelpCircle, ArrowDown, ArrowUp, Map, Filter } from 'lucide-react';
 import PlayerRadar from '../components/PlayerRadar';
-import GuessPlayerModal from '../components/modals/GuessPlayerModal'; // [新增]
+import PersonalityTestModal from '../components/modals/PersonalityTestModal';
+import LoginModal from '../components/modals/LoginModal';
 
 export default function Stats() {
-  const { playerStats, tournaments } = useLeague();
+  const { playerStats, tournaments, user } = useLeague();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: 'score', direction: 'desc' });
-  // [新增] 控制小游戏弹窗
-  const [showGuessGame, setShowGuessGame] = useState(false);
-  // [修改] 默认 stageId 为 'all' (全程)，tourId 为空 (强制用户选择)
+  // 控制人格测试弹窗
+  const [showPersonalityTest, setShowPersonalityTest] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  
+  // 默认 stageId 为 'all' (全程)，tourId 为空 (强制用户选择)
   const [filter, setFilter] = useState({ tourId: '', stageId: 'all' });
 
   // --- 雷达图状态 ---
@@ -139,18 +142,29 @@ export default function Stats() {
           avgValues={statsMeta.avg} 
         />
       )}
-        {/* [新增] 挂载小游戏弹窗 */}
-      {showGuessGame && <GuessPlayerModal onClose={() => setShowGuessGame(false)} />}
+      
+      {/* 挂载人格测试弹窗 */}
+      {showPersonalityTest && user && <PersonalityTestModal onClose={() => setShowPersonalityTest(false)} />}
+      
+      {/* 登录弹窗 */}
+      {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
+
       {/* 头部区域 */}
       <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">
         <div>
           <h2 className="text-4xl font-black text-white mb-2 flex items-center">
-            {/* [修改] 给 Trophy 加上点击事件和鼠标手势 */}
+            {/* [修改] 奖杯图标点击逻辑：检查登录 */}
             <Trophy 
                 className="text-yellow-500 mr-3 cursor-pointer hover:scale-110 transition-transform active:scale-95" 
                 size={36}
-                onClick={() => setShowGuessGame(true)} // 点击触发
-                title="???"
+                onClick={() => {
+                  if (user) {
+                    setShowPersonalityTest(true);
+                  } else {
+                    setShowLoginModal(true);
+                  }
+                }} 
+                title="CSTI职业选手人格测试"
             />
             PLAYER STATS
           </h2>

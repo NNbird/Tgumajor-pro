@@ -4,7 +4,7 @@ import { useLeague } from '../context/LeagueContext';
 import { 
   LayoutTemplate, Calendar, Shield, Users, Plus, Edit, Trash2, Upload, Settings, 
   FileSpreadsheet, AlertCircle, XSquare, CheckSquare, MessageSquare, ArrowUp, ArrowDown, Download, ArrowLeft, ArrowRight,
-  History, Trophy, Flag, Bell, Type, Bold, Send, Wand2, FileText, Box 
+  History, Trophy, Flag, Bell, Type, Bold, Send, Wand2, FileText, Box, Fingerprint, User
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import StatusBadge from '../components/StatusBadge';
@@ -25,6 +25,7 @@ export default function Admin() {
     teams, adminUpdateTeam, adminDeleteTeam, 
     playerStats, importPlayers, updateSinglePlayer, deletePlayer, deletePlayers,clearAllPlayers,
     feedbacks, deleteFeedback ,
+    usersDB, // 引入用户数据库
     historyTournaments, saveHistoryTournament, deleteHistoryTournament,
     tournaments, saveTournament, deleteTournament,
     reorderHistoryTournaments, batchUpdateMatches,
@@ -543,6 +544,7 @@ const handleDeleteGroupedPlayer = (player) => {
              { id: 'history', label: '历届锦标赛', icon: History },
              { id: 'announcements', label: '公告栏', icon: Bell },
              { id: 'pickem', label: '竞猜管理', icon: Trophy },
+             { id: 'personality', label: '人格测试结果', icon: Fingerprint },
            ].map(tab => (
              <button 
                key={tab.id} 
@@ -1220,6 +1222,93 @@ const handleDeleteGroupedPlayer = (player) => {
     <PickemManager />
   </div>
 )}
+
+        {/* --- Tab: 人格测试结果 --- */}
+        {adminTab === 'personality' && (
+          <div className="animate-in slide-in-from-bottom-2 space-y-4">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-white font-bold uppercase tracking-wider text-sm flex items-center">
+                <Fingerprint size={16} className="mr-2 text-yellow-500"/> 用户心理画像数据统计
+              </h3>
+            </div>
+
+            <div className="bg-zinc-950 border border-zinc-800 rounded overflow-hidden">
+              <table className="w-full text-left text-sm text-zinc-300 border-collapse">
+                <thead className="bg-black text-zinc-500 uppercase text-[10px] tracking-widest font-black">
+                  <tr>
+                    <th className="p-4 border-b border-zinc-800">用户/日期</th>
+                    <th className="p-4 border-b border-zinc-800">最匹配选手</th>
+                    <th className="p-4 border-b border-zinc-800">心理维度指标</th>
+                    <th className="p-4 border-b border-zinc-800">参赛通道信息</th>
+                    <th className="p-4 border-b border-zinc-800 text-right">状态</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800">
+                  {(!usersDB || usersDB?.filter?.(u => u.personalityTest).length === 0) && (
+                    <tr><td colSpan="5" className="p-12 text-center text-zinc-500 italic">暂无用户完成测试数据记录</td></tr>
+                  )}
+                  {usersDB?.filter?.(u => u.personalityTest)
+                    .sort((a, b) => new Date(b.personalityTest?.updatedAt || 0) - new Date(a.personalityTest?.updatedAt || 0))
+                    .map(u => {
+                      const test = u.personalityTest;
+                      const scores = test.userScores || {};
+                      const bestMatch = test.topMatches?.[0];
+                      const entry = test.entryInfo;
+                      
+                      return (
+                        <tr key={u.id} className="hover:bg-white/5 transition-colors group">
+                          <td className="p-4">
+                            <div className="flex flex-col">
+                              <span className="text-white font-bold">{u.name || u.username}</span>
+                              <span className="text-[10px] text-zinc-500 font-mono">{test.updatedAt ? new Date(test.updatedAt).toLocaleString() : '未知时间'}</span>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            {bestMatch ? (
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden border border-zinc-700">
+                                   <img src={`/players/${bestMatch?.name}.webp`} className="w-full h-full object-cover" onError={e => e.target.src='https://www.hltv.org/img/static/player/player_silhouette.png'} />
+                                </div>
+                                <span className="text-yellow-500 font-black italic">{bestMatch?.name}</span>
+                              </div>
+                            ) : <span className="text-zinc-600">-</span>}
+                          </td>
+                          <td className="p-4">
+                            <div className="flex gap-2 text-[10px] font-mono">
+                              {Object.entries(scores).map(([k, v]) => (
+                                <div key={k} className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-700 rounded text-zinc-400">
+                                  <span className="text-zinc-500 mr-1">{k}</span>
+                                  <span className={v >= 80 ? 'text-yellow-500' : v >= 60 ? 'text-green-500' : 'text-zinc-300'}>{v}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            {entry ? (
+                              <div className="flex flex-col gap-1 text-[11px]">
+                                <div className="flex items-center gap-1 text-cyan-500">
+                                  <Trophy size={10} /> {tournaments.find(t => t.id === entry.tourId)?.name || '未知赛事'}
+                                </div>
+                                <div className="flex items-center gap-1 text-zinc-400 font-bold">
+                                  <Shield size={10} /> {teams.find(t => t.id === entry.teamId)?.name || '未知战队'}
+                                </div>
+                                <div className="text-zinc-500 uppercase tracking-tighter">选手ID: <span className="text-white font-black">{entry.playerName}</span></div>
+                              </div>
+                            ) : <span className="text-zinc-600 italic">常规渠道测试</span>}
+                          </td>
+                          <td className="p-4 text-right">
+                            <span className={`px-2 py-1 rounded text-[10px] font-black uppercase border ${test.appState === 'result' ? 'bg-green-900/20 text-green-500 border-green-800' : 'bg-yellow-900/20 text-yellow-500 border-yellow-800'}`}>
+                              {test.appState === 'result' ? '已完成' : '答题中'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
       </div>
 

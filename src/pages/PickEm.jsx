@@ -15,16 +15,23 @@ import {
 const UserPicksDetailModal = ({ targetUser, eventData, onClose }) => {
     const { event, teams, matches } = eventData;
     const isSwiss = event.type === 'SWISS';
+    const isDoubleElim16 = event.type === 'DOUBLE_ELIM_16';
     const getName = (id) => teams.find(t => String(t.id) === String(id))?.name || '-';
 
     const checkWin = (pickId, type, slotId) => {
         if (!pickId) return false;
-        if (isSwiss) {
+        if (isSwiss || isDoubleElim16) {
             const t = teams.find(x => String(x.id) === String(pickId));
             if (!t) return false;
-            if (type === '3-0') return t.wins === 3 && t.losses === 0;
-            if (type === '0-3') return t.wins === 0 && t.losses === 3;
-            if (type === 'adv') return t.status === 'ADVANCED';
+            if (isSwiss) {
+                if (type === '3-0') return t.wins === 3 && t.losses === 0;
+                if (type === '0-3') return t.wins === 0 && t.losses === 3;
+                if (type === 'adv') return t.status === 'ADVANCED';
+            } else {
+                if (type === '2-0') return t.wins === 2 && t.losses === 0;
+                if (type === '0-2') return t.wins === 0 && t.losses === 2;
+                if (type === 'adv') return t.status === 'ADVANCED';
+            }
         } else {
             const slotMap = { 'S1_Top':'Q1', 'S1_Bot':'Q2', 'S2_Top':'Q3', 'S2_Bot':'Q4', 'F1_Top':'S1', 'F1_Bot':'S2', 'Champion':'F1' };
             const mg = slotMap[slotId];
@@ -42,11 +49,42 @@ const UserPicksDetailModal = ({ targetUser, eventData, onClose }) => {
                     <button onClick={onClose}><XIcon size={20} className="text-zinc-500 hover:text-white"/></button>
                 </div>
                 <div className="p-6 overflow-y-auto custom-scrollbar">
-                    {isSwiss ? (
+                    {isSwiss || isDoubleElim16 ? (
                         <div className="space-y-6">
-                            <div><h4 className="text-xs text-zinc-500 font-bold uppercase mb-2">3-0 Undefeated</h4><div className="flex gap-2">{targetUser.pick30?.map(id=><div key={id} className={`px-3 py-1.5 rounded border text-xs font-bold ${checkWin(id,'3-0')?'bg-green-900/30 border-green-500 text-green-400':'bg-zinc-800 border-zinc-700 text-zinc-300'}`}>{getName(id)}</div>)}</div></div>
-                            <div><h4 className="text-xs text-zinc-500 font-bold uppercase mb-2">0-3 Eliminated</h4><div className="flex gap-2">{targetUser.pick03?.map(id=><div key={id} className={`px-3 py-1.5 rounded border text-xs font-bold ${checkWin(id,'0-3')?'bg-green-900/30 border-green-500 text-green-400':'bg-zinc-800 border-zinc-700 text-zinc-300'}`}>{getName(id)}</div>)}</div></div>
-                            <div><h4 className="text-xs text-zinc-500 font-bold uppercase mb-2">Advancing</h4><div className="grid grid-cols-3 gap-2">{targetUser.pickAdvance?.map(id=><div key={id} className={`px-3 py-1.5 rounded border text-xs font-bold ${checkWin(id,'adv')?'bg-green-900/30 border-green-500 text-green-400':'bg-zinc-800 border-zinc-700 text-zinc-300'}`}>{getName(id)}</div>)}</div></div>
+                            <div>
+                                <h4 className="text-xs text-zinc-500 font-bold uppercase mb-2">
+                                    {isSwiss ? '3-0 Undefeated' : '2-0 Undefeated'}
+                                </h4>
+                                <div className="flex gap-2">
+                                    {targetUser.pick30?.map(id => (
+                                        <div key={id} className={`px-3 py-1.5 rounded border text-xs font-bold ${checkWin(id, isSwiss ? '3-0' : '2-0') ? 'bg-green-900/30 border-green-500 text-green-400' : 'bg-zinc-800 border-zinc-700 text-zinc-300'}`}>
+                                            {getName(id)}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="text-xs text-zinc-500 font-bold uppercase mb-2">
+                                    {isSwiss ? '0-3 Eliminated' : '0-2 Eliminated'}
+                                </h4>
+                                <div className="flex gap-2">
+                                    {targetUser.pick03?.map(id => (
+                                        <div key={id} className={`px-3 py-1.5 rounded border text-xs font-bold ${checkWin(id, isSwiss ? '0-3' : '0-2') ? 'bg-green-900/30 border-green-500 text-green-400' : 'bg-zinc-800 border-zinc-700 text-zinc-300'}`}>
+                                            {getName(id)}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="text-xs text-zinc-500 font-bold uppercase mb-2">Advancing</h4>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {targetUser.pickAdvance?.map(id => (
+                                        <div key={id} className={`px-3 py-1.5 rounded border text-xs font-bold ${checkWin(id, 'adv') ? 'bg-green-900/30 border-green-500 text-green-400' : 'bg-zinc-800 border-zinc-700 text-zinc-300'}`}>
+                                            {getName(id)}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     ) : (
                         <div className="space-y-2">
@@ -195,7 +233,7 @@ const DraggableTeam = ({ team, isUsed, isLocked }) => {
         <div ref={setNodeRef} style={style} {...listeners} {...attributes} className={`p-1.5 rounded flex items-center gap-2 group transition-all border shadow-sm ${isUsed ? 'bg-zinc-950 border-zinc-800 opacity-50 grayscale cursor-default' : 'bg-black/40 border-zinc-700 hover:border-yellow-500/50 cursor-grab active:cursor-grabbing hover:bg-zinc-800'}`}>
              <div className={`w-4 h-4 flex items-center justify-center text-[8px] font-mono rounded ${isUsed ? 'bg-zinc-900 text-zinc-600' : 'bg-zinc-800 text-zinc-400'}`}>{team.seed}</div>
              <div className={`w-5 h-5 flex items-center justify-center text-[8px] font-black rounded border ${isUsed ? 'bg-zinc-900 text-zinc-600 border-zinc-800' : 'bg-zinc-900 text-zinc-500 group-hover:text-yellow-500 border-zinc-800'}`}>{team.name.substring(0,1).toUpperCase()}</div>
-             <span className="text-[10px] font-bold text-zinc-300 truncate">{team.name}</span>
+             <span className="text-[10px] font-bold truncate">{team.name}</span>
              {isUsed && <CheckCircle2 size={10} className="ml-auto text-green-900"/>}
         </div>
     );
@@ -213,7 +251,8 @@ const SeedList = ({ teams, usedIds, isLocked }) => {
     );
 };
 
-const SwissBracket = ({ matches, teams, userPicks, showUserPicks }) => {
+const SwissBracket = ({ matches, teams, userPicks, showUserPicks, type }) => {
+    const isDoubleElim16 = type === 'DOUBLE_ELIM_16';
     const getTeam = (id) => teams.find(t => t.id === id) || { name: 'TBD', id: 'tbd' };
     const scrollRef = useRef(null);
     const [isDown, setIsDown] = useState(false);
@@ -266,22 +305,34 @@ const SwissBracket = ({ matches, teams, userPicks, showUserPicks }) => {
         <div ref={scrollRef} className="flex h-full w-full overflow-x-auto px-4 gap-6 items-stretch bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] bg-fixed cursor-grab active:cursor-grabbing no-scrollbar" onMouseDown={handleMouseDown} onMouseLeave={handleMouseLeave} onMouseUp={handleMouseUp} onMouseMove={handleMouseMove}>
             <RoundColumn round={1} groups={['0-0']} title="Round 1" /><div className="w-px bg-white/5 h-[80%] self-center shrink-0 opacity-50"></div>
             <RoundColumn round={2} groups={['1-0', '0-1']} title="Round 2" /><div className="w-px bg-white/5 h-[80%] self-center shrink-0 opacity-50"></div>
-            <RoundColumn round={3} groups={['2-0', '1-1', '0-2']} title="Round 3" /><div className="w-px bg-white/5 h-[80%] self-center shrink-0 opacity-50"></div>
-            <RoundColumn round={4} groups={['2-1', '1-2']} title="Round 4" /><div className="w-px bg-white/5 h-[80%] self-center shrink-0 opacity-50"></div>
-            <RoundColumn round={5} groups={['2-2']} title="Round 5" /><div className="w-4 shrink-0"></div>
+            <RoundColumn round={3} groups={['2-0', '1-1', '0-2']} title="Round 3" />
+            {!isDoubleElim16 && (
+                <>
+                    <div className="w-px bg-white/5 h-[80%] self-center shrink-0 opacity-50"></div>
+                    <RoundColumn round={4} groups={['2-1', '1-2']} title="Round 4" /><div className="w-px bg-white/5 h-[80%] self-center shrink-0 opacity-50"></div>
+                    <RoundColumn round={5} groups={['2-2']} title="Round 5" />
+                </>
+            )}
+            <div className="w-4 shrink-0"></div>
         </div>
     );
 };
 
-const DropSlot = ({ id, label, team, onRemove, type, isFinished, realTeamStats, isCheckingHomework }) => {
+const DropSlot = ({ id, label, team, onRemove, type, eventType, isFinished, realTeamStats, isCheckingHomework }) => {
     const { setNodeRef, isOver } = useDroppable({ id, disabled: isFinished });
     let resultStatus = null; 
     if (isCheckingHomework && isFinished && team && realTeamStats) {
         const stats = realTeamStats.find(t => t.id === team.id);
         if (stats) {
-            if (type === '3-0') resultStatus = (stats.wins === 3 && stats.losses === 0) ? 'CORRECT' : 'WRONG';
-            else if (type === '0-3') resultStatus = (stats.wins === 0 && stats.losses === 3) ? 'CORRECT' : 'WRONG';
-            else if (type === 'adv') resultStatus = (stats.status === 'ADVANCED') ? 'CORRECT' : 'WRONG';
+            if (eventType === 'SWISS') {
+                if (type === '3-0') resultStatus = (stats.wins === 3 && stats.losses === 0) ? 'CORRECT' : 'WRONG';
+                else if (type === '0-3') resultStatus = (stats.wins === 0 && stats.losses === 3) ? 'CORRECT' : 'WRONG';
+                else if (type === 'adv') resultStatus = (stats.status === 'ADVANCED') ? 'CORRECT' : 'WRONG';
+            } else if (eventType === 'DOUBLE_ELIM_16') {
+                if (type === '3-0') resultStatus = (stats.wins === 2 && stats.losses === 0) ? 'CORRECT' : 'WRONG'; // 这里的 type 名字复用，逻辑改 2-0
+                else if (type === '0-3') resultStatus = (stats.wins === 0 && stats.losses === 2) ? 'CORRECT' : 'WRONG'; // 逻辑改 0-2
+                else if (type === 'adv') resultStatus = (stats.status === 'ADVANCED') ? 'CORRECT' : 'WRONG';
+            }
         }
     }
     let borderColor = 'border-zinc-800/60', bgColor = 'bg-black/20', textColor = 'text-zinc-600';
@@ -577,8 +628,8 @@ const BracketStage = ({ eventData, userPicks, handleRemoveBracketPick, isLocked,
                     
                     {/* 连接线适配：-right-2 lg:-right-8, w-2 lg:w-8 */}
                     <div className="absolute -right-2 lg:-right-8 top-1/2 -translate-y-1/2 w-2 lg:w-8 h-full flex items-center">
-                        <div className="w-1 lg:w-4 h-full border-r border-t border-b border-zinc-700 rounded-r-sm"></div> {/* w-1 lg:w-4 */}
-                        <div className="w-1 lg:w-4 h-px bg-zinc-700"></div> {/* w-1 lg:w-4 */}
+                        <div className="w-1 lg:w-4 h-full border-r border-t border-b border-zinc-700 rounded-r-sm"></div>
+                        <div className="w-1 lg:w-4 h-px bg-zinc-700"></div>
                     </div>
 
                     <BracketDropZone id="S1_Bot" onRemove={handleRemoveBracketPick} disabled={isLocked} isOver={checkHover('S1_Bot')} onZoneClick={onSlotClick} isHighlight={!!mobileSelectedId}>
@@ -683,6 +734,7 @@ export default function PickEm() {
 
     // [新增] 核心更新逻辑 (从 handleDragEnd 提取或重写，适配两种模式)
     const executePickUpdate = (rawTeamId, slotId) => {
+        if (!currentEventData) return;
         const teamId = String(rawTeamId).replace(/^(src-|pick-)/, ''); // 清理ID前缀
         
         // --- A. 单败淘汰赛逻辑 (Bracket) ---
@@ -867,7 +919,7 @@ const testLeaderboard = async () => {
                 
                 // 恢复作业
                 if (data.userPicks) {
-                    if (data.event.type === 'SWISS') {
+                    if (data.event.type === 'SWISS' || data.event.type === 'DOUBLE_ELIM_16') {
                          const loadedPicks = {};
                          // ==================== 修改开始 ====================
                          // 使用 parseJsonArray 安全解析数据
@@ -897,7 +949,7 @@ const testLeaderboard = async () => {
                         const bp = typeof data.userPicks.bracketPicks === 'string' 
                             ? JSON.parse(data.userPicks.bracketPicks) 
                             : data.userPicks.bracketPicks;
-                        setUserPicks({ bracketPicks: bp || {} });
+                            setUserPicks({ bracketPicks: bp || {} });
                     }
                 } else { 
                     setUserPicks({}); 
@@ -1031,104 +1083,88 @@ const { tasks, coinLevel } = useMemo(() => {
             const items = [
                  { desc: '在本阶段做出全部10次预测', completed: pickedCount === 10 },
                  { desc: '做出5次正确的竞猜预测', completed: swissCorrect >= 5 }
-            ];
-            generatedTasks.push({ title: `${evt.stageName} (瑞士轮)`, items });
-            items.forEach(i => { if(i.completed) totalCompleted++; });
-            totalPossible += 2;
-        } else if (evt.type === 'SINGLE_ELIM') {
-            // 淘汰赛阶段 - 修复任务逻辑
-            const bracketPicks = pick?.bracketPicks || {};
-            // 合并本地临时修改（如果是当前阶段）
-            let finalBracketPicks = { ...bracketPicks };
-            if (currentEventData && evt.id === currentEventData.event.id) {
-                finalBracketPicks = { ...finalBracketPicks, ...(userPicks.bracketPicks || {}) };
-            }
+        ];
+        generatedTasks.push({ title: `${evt.stageName} (瑞士轮)`, items });
+        items.forEach(i => { if(i.completed) totalCompleted++; });
+        totalPossible += 2;
+    } else if (evt.type === 'DOUBLE_ELIM_16') {
+        // [新增] 16队双败任务逻辑
+        const pick30 = pick?.pick30 ? parseJsonArray(pick.pick30) : [];
+        const pick03 = pick?.pick03 ? parseJsonArray(pick.pick03) : [];
+        const pickAdvance = pick?.pickAdvance ? parseJsonArray(pick.pickAdvance) : [];
+        let pickedCount = pick30.length + pick03.length + pickAdvance.length;
+        
+        let elimCorrect = pick?.correctCount || 0;
 
-            const pickedCount = Object.keys(finalBracketPicks).length;
-
-            // 实时比对函数
-            const checkWinLive = (slotId, matchGroup) => {
-                const pickId = finalBracketPicks[slotId];
-                if (!pickId) return false;
-                const m = eventMatches.find(x => x.matchGroup === matchGroup);
-                // 必须比赛已结束 且 胜者ID匹配
-                return m?.isFinished && String(m.winnerId) === String(pickId);
+        if (evt.teams && evt.teams.length > 0) {
+            let liveElimCorrect = 0;
+            const checkTeamStatus = (tid, type) => {
+                const t = evt.teams.find(team => String(team.id) === String(tid));
+                if (!t) return false;
+                if (type === '2-0') return t.wins === 2 && t.losses === 0;
+                if (type === '0-2') return t.wins === 0 && t.losses === 2;
+                if (type === '2-1') return t.wins === 2 && t.losses === 1; // 严谨检查 2-1
+                return false;
             };
 
-            // 统计各阶段正确数
-            let quarterCorrect = 0;
-            if (checkWinLive('S1_Top', 'Q1')) quarterCorrect++;
-            if (checkWinLive('S1_Bot', 'Q2')) quarterCorrect++;
-            if (checkWinLive('S2_Top', 'Q3')) quarterCorrect++;
-            if (checkWinLive('S2_Bot', 'Q4')) quarterCorrect++;
-
-            let semiCorrect = 0;
-            if (checkWinLive('F1_Top', 'S1')) semiCorrect++;
-            if (checkWinLive('F1_Bot', 'S2')) semiCorrect++;
-
-            let finalCorrect = 0;
-            if (checkWinLive('Champion', 'F1')) finalCorrect++;
-
-            // 累计总正确数 (用于进度条等)
-            liveCorrectCount = quarterCorrect + semiCorrect + finalCorrect;
-
-            const items = [
-                { 
-                    desc: '在决胜阶段做出7次竞猜预测', 
-                    completed: pickedCount >= 7 
-                },
-                { 
-                    desc: '为四分之一决赛做出2次正确的竞猜预测', 
-                    completed: quarterCorrect >= 2 // 使用实时计算值
-                },
-                { 
-                    desc: '为半决赛做出1次正确的竞猜预测', 
-                    completed: semiCorrect >= 1 // 通常是1次，看你的规则是1次还是2次？后端写的是1次
-                },
-                { 
-                    desc: '为总决赛做出正确的竞猜预测', 
-                    completed: finalCorrect >= 1 
-                }
-            ];
-            
-            generatedTasks.push({ title: `${evt.stageName} (淘汰赛)`, items });
-            
-            items.forEach(i => { if(i.completed) totalCompleted++; });
-            totalPossible += 4;
+            pick30.forEach(id => { if(checkTeamStatus(id, '2-0')) liveElimCorrect++; });
+            pick03.forEach(id => { if(checkTeamStatus(id, '0-2')) liveElimCorrect++; });
+            pickAdvance.forEach(id => { if(checkTeamStatus(id, '2-1')) liveElimCorrect++; });
+            elimCorrect = Math.max(elimCorrect, liveElimCorrect);
         }
-    });
-    
-    // 计算硬币等级...
-    let level = 'BRONZE';
-    if (totalPossible === 6) { 
-        if(totalCompleted >= 6) level='DIAMOND'; 
-        else if(totalCompleted >= 4) level='GOLD'; 
-        else if(totalCompleted >= 2) level='SILVER'; 
-    }
-    else if (totalPossible === 8) { 
-        if(totalCompleted >= 8) level='DIAMOND'; 
-        else if(totalCompleted >= 4) level='GOLD'; 
-        else if(totalCompleted >= 2) level='SILVER'; 
-    }
-    else if (totalPossible === 10) { 
-        if(totalCompleted >= 10) level='DIAMOND'; 
-        else if(totalCompleted >= 6) level='GOLD'; 
-        else if(totalCompleted >= 3) level='SILVER'; 
-    }
-    else if(totalPossible > 0) { 
-        if(totalCompleted === totalPossible) level='DIAMOND'; 
-        else if(totalCompleted >= totalPossible * 0.5) level='GOLD'; 
-        else if(totalCompleted >= 2) level='SILVER'; 
-    }
 
-    return { 
-        tasks: generatedTasks, 
-        coinLevel: level 
-    };
-}, [allStagesData, currentEventData, userPicks]);
+        const items = [
+             { desc: '在本阶段做出全部10次预测', completed: pickedCount === 10 },
+             { desc: '做出5次正确的竞猜预测', completed: elimCorrect >= 5 }
+        ];
+        generatedTasks.push({ title: `${evt.stageName} (双败淘汰)`, items });
+        items.forEach(i => { if(i.completed) totalCompleted++; });
+        totalPossible += 2;
+    } else if (evt.type === 'SINGLE_ELIM') {
+        const bp = pick?.bracketPicks ? (typeof pick.bracketPicks === 'string' ? JSON.parse(pick.bracketPicks) : pick.bracketPicks) : {};
+        let pickedCount = Object.keys(bp).filter(k => bp[k]).length;
+        let elimCorrect = 0;
+        if (evt.matches && evt.matches.length > 0) {
+            ['Q1','Q2','Q3','Q4','S1','S2','F1'].forEach(slot => {
+                const match = evt.matches.find(m => m.matchGroup === slot);
+                if (match?.isFinished && String(match.winnerId) === String(bp[slot])) elimCorrect++;
+            });
+        }
+        const items = [
+             { desc: '在本阶段做出全部7次预测', completed: pickedCount === 7 },
+             { desc: '做出3次正确的竞猜预测', completed: elimCorrect >= 3 }
+        ];
+        generatedTasks.push({ title: `${evt.stageName} (淘汰赛)`, items });
+        items.forEach(i => { if(i.completed) totalCompleted++; });
+        totalPossible += 2;
+    }
+}); 
+
+const calculateCoin = (comp, poss) => {
+    if (poss === 0) return 'BRONZE';
+    const ratio = comp / poss;
+    if (ratio >= 0.9) return 'DIAMOND';
+    if (ratio >= 0.6) return 'GOLD';
+    if (ratio >= 0.3) return 'SILVER';
+    return 'BRONZE';
+};
+
+return { tasks: generatedTasks, coinLevel: calculateCoin(totalCompleted, totalPossible) };
+}, [allStagesData, currentEventData, user]);
+
 
     const availableTeams = currentEventData?.teams.filter(t => !Object.values(userPicks).map(p=>p.id).includes(t.id)) || [];
     
+    // [修复] 补全缺失的变量，解决 usedIds is not defined 报错
+    const usedIds = useMemo(() => {
+        if (!userPicks) return [];
+        // 兼容模式：Swiss 使用对象结构，其值有 id；Bracket 使用 ID 字符串
+        if (currentEventData?.event?.type === 'SINGLE_ELIM') {
+            return Object.values(userPicks.bracketPicks || {}).map(id => String(id));
+        }
+        return Object.values(userPicks).map(p => String(p?.id)).filter(id => id && id !== 'undefined');
+    }, [userPicks, currentEventData]);
+
     const displayPicks = useMemo(() => {
         if (!currentEventData || currentEventData.event.type === 'SINGLE_ELIM') return {};
         if (isFinished && !showMyPicks) {
@@ -1158,6 +1194,7 @@ const { tasks, coinLevel } = useMemo(() => {
     // --- 核心拖拽逻辑 ---
     // --- 核心拖拽逻辑 ---
     const handleDragEnd = (event) => {
+        if (!currentEventData) return;
         // 比赛结束且不查看作业时，禁止操作
         if (currentEventData?.event?.status === 'FINISHED' && !showMyPicks) return;
         
@@ -1241,6 +1278,7 @@ const { tasks, coinLevel } = useMemo(() => {
     };
 
     const handleRemovePick = (id) => {
+        if (!currentEventData) return;
         if (currentEventData.event.type === 'SINGLE_ELIM') {
             setUserPicks(prev => {
                 const newBracket = { ...prev.bracketPicks };
@@ -1260,9 +1298,11 @@ const { tasks, coinLevel } = useMemo(() => {
         }
     };
     const handleRemoveBracketPick = (id) => handleRemovePick(id); 
+    const removeFromPicks = (id) => handleRemovePick(id); 
 
     const handleSubmitPicks = async () => {
         if (!user) return alert("请先登录");
+        if (!currentEventData) return;
         setSubmitting(true);
         const payload = { userId: user.id, eventId: selectedStageId, picks: {} };
         if (currentEventData.event.type === 'SINGLE_ELIM') {
@@ -1296,7 +1336,6 @@ const { tasks, coinLevel } = useMemo(() => {
         } catch (e) { alert("网络错误"); } finally { setSubmitting(false); }
     };
 
-    if (!user) return <div className="pt-20 text-center text-white">请登录</div>;
     if (!user) return <div className="pt-20 text-center text-white">请登录</div>;
     
     // 只有在真的加载中且还没有任何阶段数据时才显示 Loading
@@ -1448,6 +1487,11 @@ const { tasks, coinLevel } = useMemo(() => {
                                     <ListOrdered size={18}/> 切换其他赛事
                                 </button>
                             </div>
+                        ) : !currentEventData ? (
+                            <div className="flex-1 flex flex-col items-center justify-center bg-zinc-950/50">
+                                <Loader2 className="animate-spin text-yellow-500 mb-2" size={32} />
+                                <span className="text-xs text-zinc-500">正在加载竞猜详情...</span>
+                            </div>
                         ) : isHidden ? (
                             // ✅ 分支 B: 阶段被隐藏
                             <div className="flex-1 flex flex-col items-center justify-center bg-black text-zinc-600">
@@ -1476,7 +1520,7 @@ const { tasks, coinLevel } = useMemo(() => {
                                     <div className="hidden lg:block h-full">
                                              <SeedList 
                                                 teams={currentEventData?.teams || []} 
-                                                usedIds={Object.values(userPicks).map(p=>p.id)} 
+                                                usedIds={usedIds} 
                                                 isLocked={isLocked} 
                                             />
                                         </div>
@@ -1491,15 +1535,15 @@ const { tasks, coinLevel } = useMemo(() => {
                                     <div className="space-y-6">
                                         <div>
                                             <div className="flex items-center gap-2 mb-2"><div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div><span className="text-[10px] font-black text-white italic uppercase">3-0 Undefeated</span></div>
-                                            <div className="grid grid-cols-2 gap-2">{[1,2].map(i => <DropSlot key={`30_${i}`} id={`30_${i}`} label="3-0" type="3-0" team={displayPicks[`30_${i}`]} onRemove={handleRemovePick} isFinished={isFinished} realTeamStats={currentEventData?.teams} isCheckingHomework={showMyPicks} />)}</div>
+                                            <div className="grid grid-cols-2 gap-2">{[1,2].map(i => <DropSlot key={`30_${i}`} id={`30_${i}`} label="SELECT TEAM" team={displayPicks[`30_${i}`]} onRemove={removeFromPicks} type={currentEventData.event.type === 'SWISS' ? '3-0' : '2-0'} eventType={currentEventData.event.type} isFinished={isFinished} realTeamStats={currentEventData.teams} isCheckingHomework={showMyPicks} />)}</div>
                                         </div>
                                         <div>
                                             <div className="flex items-center gap-2 mb-2"><div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div><span className="text-[10px] font-black text-white italic uppercase">Advancing</span></div>
-                                            <div className="grid grid-cols-2 gap-2">{[1,2,3,4,5,6].map(i => <DropSlot key={`adv_${i}`} id={`adv_${i}`} label="ADV" type="adv" team={displayPicks[`adv_${i}`]} onRemove={handleRemovePick} isFinished={isFinished} realTeamStats={currentEventData?.teams} isCheckingHomework={showMyPicks} />)}</div>
+                                            <div className="grid grid-cols-2 gap-2">{[1,2,3,4,5,6].map(i => <DropSlot key={`adv_${i}`} id={`adv_${i}`} label="ADVANCE" team={displayPicks[`adv_${i}`]} onRemove={removeFromPicks} type="adv" eventType={currentEventData.event.type} isFinished={isFinished} realTeamStats={currentEventData.teams} isCheckingHomework={showMyPicks} />)}</div>
                                         </div>
                                         <div>
                                             <div className="flex items-center gap-2 mb-2"><div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div><span className="text-[10px] font-black text-white italic uppercase">0-3 Eliminated</span></div>
-                                            <div className="grid grid-cols-2 gap-2">{[1,2].map(i => <DropSlot key={`03_${i}`} id={`03_${i}`} label="0-3" type="0-3" team={displayPicks[`03_${i}`]} onRemove={handleRemovePick} isFinished={isFinished} realTeamStats={currentEventData?.teams} isCheckingHomework={showMyPicks} />)}</div>
+                                            <div className="grid grid-cols-2 gap-2">{[1,2].map(i => <DropSlot key={`03_${i}`} id={`03_${i}`} label="SELECT TEAM" team={displayPicks[`03_${i}`]} onRemove={removeFromPicks} type={currentEventData.event.type === 'SWISS' ? '0-3' : '0-2'} eventType={currentEventData.event.type} isFinished={isFinished} realTeamStats={currentEventData.teams} isCheckingHomework={showMyPicks} />)}</div>
                                         </div>
                                     </div>
                                 </div>

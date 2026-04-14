@@ -1,6 +1,7 @@
 import { Blob } from 'buffer';
 import { generateSwissPairings } from './utils/swissSystem.js';
-import { generateBracketPairings } from './utils/bracketSystem.js'; // [新增]
+import { generateBracketPairings } from './utils/bracketSystem.js'; 
+import { generateDoubleElim16Pairings } from './utils/doubleElim16.js'; // [新增]
 // --- 1. 环境 Polyfill ---
 if (typeof global.File === 'undefined') {
   global.File = class File extends Blob {
@@ -426,6 +427,7 @@ app.post('/api/login', async (req, res) => {
         name: user.name,         // 昵称
         role: user.role, 
         email: user.email, 
+        personalityTest: user.personalityTest, // [新增] 返回人格测试结果
         needUpdate: isLegacy || isWeak 
       }
     });
@@ -474,18 +476,23 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// [修改个人信息] 只允许改昵称和密码，不允许改登录账号
+// [修改个人信息] 只允许改昵称和密码，以及更新人格测试结果
 app.post('/api/user/update', async (req, res) => {
-  const { userId, name, currentPassword, newPassword } = req.body;
+  const { userId, name, currentPassword, newPassword, personalityTest } = req.body;
 
   try {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return res.json({ success: false, message: '用户不存在' });
 
     const updateData = {
-      name, // 更新昵称
       forceUpdate: false 
     };
+
+    // 只有传了 name 才更新昵称
+    if (name) updateData.name = name;
+    
+    // 如果传了人格测试结果，则更新
+    if (personalityTest) updateData.personalityTest = personalityTest;
 
     // 如果涉及密码修改
     if (newPassword) {
@@ -516,6 +523,7 @@ app.post('/api/user/update', async (req, res) => {
         name: updatedUser.name,
         role: updatedUser.role,
         email: updatedUser.email,
+        personalityTest: updatedUser.personalityTest, // [新增]
         needUpdate: false
       }
     });
@@ -777,6 +785,16 @@ app.post('/api/pickem/init', async (req, res) => {
             // 单败第一轮 (8强): 使用 bracketSystem 生成
             const { newMatches } = generateBracketPairings(createdTeams, [], 1); // Round 1
             initialMatches = newMatches.map(m => ({ ...m, eventId: event.id }));
+        } else if (type === 'DOUBLE_ELIM_16') {
+            // 16队双败第一轮: 逻辑同瑞士轮 R1 (1-9, 2-10...)
+            const half = createdTeams.length / 2;
+            for (let i = 0; i < half; i++) {
+                initialMatches.push({
+                    eventId: event.id, round: 1, matchGroup: '0-0',
+                    teamAId: createdTeams[i].id, teamBId: createdTeams[i + half].id,
+                    isBo3: false, isFinished: false
+                });
+            }
         }
 
         if (initialMatches.length > 0) {
@@ -943,9 +961,14 @@ app.post('/api/pickem/match/update', async (req, res) => {
             const l = await tx.pickemTeam.update({ where: { id: winnerId===match.teamAId?match.teamBId:match.teamAId }, data: { losses: { increment: 1 } } });
 
             // 瑞士轮状态判断 (3胜/3负)
-            // 单败不需要在这里判断状态，下一轮生成时自动从 match winner 取
-            if (w.wins === 3) await tx.pickemTeam.update({ where: { id: w.id }, data: { status: 'ADVANCED' } });
-            if (l.losses === 3) await tx.pickemTeam.update({ where: { id: l.id }, data: { status: 'ELIMINATED' } });
+            if (event.type === 'SWISS') {
+                if (w.wins === 3) await tx.pickemTeam.update({ where: { id: w.id }, data: { status: 'ADVANCED' } });
+                if (l.losses === 3) await tx.pickemTeam.update({ where: { id: l.id }, data: { status: 'ELIMINATED' } });
+            } else if (event.type === 'DOUBLE_ELIM_16') {
+                // 16队双败状态判断 (2胜/2负)
+                if (w.wins === 2) await tx.pickemTeam.update({ where: { id: w.id }, data: { status: 'ADVANCED' } });
+                if (l.losses === 2) await tx.pickemTeam.update({ where: { id: l.id }, data: { status: 'ELIMINATED' } });
+            }
         });
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -966,9 +989,10 @@ app.post('/api/pickem/generate-round', async (req, res) => {
 
         // --- 结算逻辑 ---
         const isSwissEnd = event.type === 'SWISS' && nextRound > 5;
-        const isBracketEnd = event.type === 'SINGLE_ELIM' && nextRound > 3; // Round 3 是决赛，>3 结算
+        const isBracketEnd = event.type === 'SINGLE_ELIM' && nextRound > 3; 
+        const isDoubleElimEnd = event.type === 'DOUBLE_ELIM_16' && nextRound > 3; // 3轮结算
 
-        if (isSwissEnd || isBracketEnd) {
+        if (isSwissEnd || isBracketEnd || isDoubleElimEnd) {
             // ... (这里可以加入结算算分逻辑，同之前的代码) ...
             await prisma.pickemEvent.update({ where: { id: eventId }, data: { status: 'FINISHED' } });
             return res.json({ success: true, message: '赛事已结算' });
@@ -993,6 +1017,18 @@ app.post('/api/pickem/generate-round', async (req, res) => {
         } else if (event.type === 'SINGLE_ELIM') {
             const result = generateBracketPairings(teams, matches, nextRound);
             newMatches = result.newMatches.map(m => ({ ...m, eventId }));
+        } else if (event.type === 'DOUBLE_ELIM_16') {
+            const result = generateDoubleElim16Pairings(teams, matches, nextRound);
+            newMatches = result.newMatches.map(m => ({ ...m, eventId }));
+            updatedStats = result.updatedStats;
+
+            // 更新 BU 分
+            for (const tid in updatedStats) {
+                await prisma.pickemTeam.update({
+                    where: { id: tid },
+                    data: { buchholz: updatedStats[tid].buchholz }
+                });
+            }
         }
 
         if (newMatches.length === 0) return res.status(200).json({ message: '没有新对阵生成' });
@@ -1052,6 +1088,26 @@ app.post('/api/pickem/pick', async (req, res) => {
                 picks.pick03.forEach(id => { if(checkTeamStatus(id, '0-3')) correctCount++; });
             }
             if (picks.pickAdvance) {
+                picks.pickAdvance.forEach(id => { if(checkTeamStatus(id, 'adv')) correctCount++; });
+            }
+        } else if (event.type === 'DOUBLE_ELIM_16') {
+            // 计算 16 队双败正确数
+            const checkTeamStatus = (teamId, type) => {
+                const team = teams.find(t => t.id === teamId);
+                if (!team) return false;
+                if (type === '2-0') return team.wins === 2 && team.losses === 0;
+                if (type === '0-2') return team.wins === 0 && team.losses === 2;
+                if (type === 'adv') return team.status === 'ADVANCED';
+                return false;
+            };
+            
+            if (picks.pick30) { // 这里复用字段名，实际上是 2-0
+                picks.pick30.forEach(id => { if(checkTeamStatus(id, '2-0')) correctCount++; });
+            }
+            if (picks.pick03) { // 这里复用字段名，实际上是 0-2
+                picks.pick03.forEach(id => { if(checkTeamStatus(id, '0-2')) correctCount++; });
+            }
+            if (picks.pickAdvance) { // 这里是 2-1
                 picks.pickAdvance.forEach(id => { if(checkTeamStatus(id, 'adv')) correctCount++; });
             }
         } else {
@@ -1535,7 +1591,7 @@ app.post('/api/pickem/calculate-scores/:eventId', async (req, res) => {
         if (event.type === 'SWISS') {
           // 瑞士轮正确数计算
           const checkTeamStatus = (teamId, type) => {
-            const team = event.teams.find(t => t.id === teamId);
+            const team = teams.find(t => t.id === teamId);
             if (!team) return false;
             if (type === '3-0') return team.wins === 3 && team.losses === 0;
             if (type === '0-3') return team.wins === 0 && team.losses === 3;
@@ -1543,14 +1599,15 @@ app.post('/api/pickem/calculate-scores/:eventId', async (req, res) => {
             return false;
           };
           
-          const pick30 = parseJsonArray(pick.pick30);
-          const pick03 = parseJsonArray(pick.pick03);
-          const pickAdvance = parseJsonArray(pick.pickAdvance);
-          
-          pick30.forEach(id => { if(checkTeamStatus(id, '3-0')) correctCount++; });
-          pick03.forEach(id => { if(checkTeamStatus(id, '0-3')) correctCount++; });
-          pickAdvance.forEach(id => { if(checkTeamStatus(id, 'adv')) correctCount++; });
-          
+          if (pick.pick30) {
+            picks.pick30.forEach(id => { if(checkTeamStatus(id, '3-0')) correctCount++; });
+          }
+          if (pick.pick03) {
+            picks.pick03.forEach(id => { if(checkTeamStatus(id, '0-3')) correctCount++; });
+          }
+          if (pick.pickAdvance) {
+            picks.pickAdvance.forEach(id => { if(checkTeamStatus(id, 'adv')) correctCount++; });
+          }
         } else if (event.type === 'SINGLE_ELIM') {
           // 单淘汰赛正确数计算 - 修复版
           const bracketPicks = pick.bracketPicks || {};
@@ -1708,10 +1765,10 @@ app.post('/api/pickem/admin/calculate-all-scores', async (req, res) => {
               });
             }
             
-            // 4. 更新数据库
+            // 4. 更新正确数
             await prisma.userPick.update({
-              where: { id: pick.id },
-              data: { correctCount }
+                where: { id: pick.id },
+                data: { correctCount }
             });
             
             totalUsers++;
@@ -1874,6 +1931,15 @@ app.post('/api/pickem/update-teams', async (req, res) => {
             } else if (type === 'SINGLE_ELIM') {
                 const { newMatches } = generateBracketPairings(createdTeams, [], 1);
                 initialMatches = newMatches.map(m => ({ ...m, eventId }));
+            } else if (type === 'DOUBLE_ELIM_16') {
+                const half = createdTeams.length / 2;
+                for (let i = 0; i < half; i++) {
+                    initialMatches.push({
+                        eventId, round: 1, matchGroup: '0-0',
+                        teamAId: createdTeams[i].id, teamBId: createdTeams[i + half].id,
+                        isBo3: false, isFinished: false
+                    });
+                }
             }
 
             if (initialMatches.length > 0) {

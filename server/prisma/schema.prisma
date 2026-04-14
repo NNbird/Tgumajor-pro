@@ -172,6 +172,9 @@ model User {
   generationCredits Int @default(3)     // 剩余生成次数 (默认为3)
   assets            UserAsset[]         // 个人背包
   generationTasks   GenerationTask[]    // 生成任务记录
+  
+  // [新增] CSTI 人格测试结果
+  personalityTest   Json?
 }
 
 

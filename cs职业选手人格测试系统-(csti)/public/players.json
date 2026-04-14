@@ -1,0 +1,902 @@
+[
+  {
+    "id": 1,
+    "name": "ZywOo",
+    "AGG": 65,
+    "TEA": 55,
+    "INS": 60,
+    "VOC": 40,
+    "SPE": 20
+  },
+  {
+    "id": 2,
+    "name": "s1mple",
+    "AGG": 95,
+    "TEA": 20,
+    "INS": 95,
+    "VOC": 80,
+    "SPE": 85
+  },
+  {
+    "id": 3,
+    "name": "donk",
+    "AGG": 100,
+    "TEA": 30,
+    "INS": 90,
+    "VOC": 85,
+    "SPE": 10
+  },
+  {
+    "id": 4,
+    "name": "device",
+    "AGG": 40,
+    "TEA": 70,
+    "INS": 20,
+    "VOC": 45,
+    "SPE": 85
+  },
+  {
+    "id": 5,
+    "name": "NiKo",
+    "AGG": 95,
+    "TEA": 25,
+    "INS": 70,
+    "VOC": 70,
+    "SPE": 15
+  },
+  {
+    "id": 6,
+    "name": "m0NESY",
+    "AGG": 80,
+    "TEA": 40,
+    "INS": 85,
+    "VOC": 60,
+    "SPE": 90
+  },
+  {
+    "id": 7,
+    "name": "ropz",
+    "AGG": 15,
+    "TEA": 60,
+    "INS": 20,
+    "VOC": 30,
+    "SPE": 25
+  },
+  {
+    "id": 8,
+    "name": "sh1ro",
+    "AGG": 20,
+    "TEA": 65,
+    "INS": 30,
+    "VOC": 10,
+    "SPE": 95
+  },
+  {
+    "id": 9,
+    "name": "kennyS",
+    "AGG": 85,
+    "TEA": 35,
+    "INS": 100,
+    "VOC": 75,
+    "SPE": 100
+  },
+  {
+    "id": 10,
+    "name": "dupreeh",
+    "AGG": 80,
+    "TEA": 65,
+    "INS": 60,
+    "VOC": 70,
+    "SPE": 30
+  },
+  {
+    "id": 11,
+    "name": "karrigan",
+    "AGG": 50,
+    "TEA": 95,
+    "INS": 50,
+    "VOC": 95,
+    "SPE": 40
+  },
+  {
+    "id": 12,
+    "name": "coldzera",
+    "AGG": 30,
+    "TEA": 60,
+    "INS": 20,
+    "VOC": 50,
+    "SPE": 35
+  },
+  {
+    "id": 13,
+    "name": "f0rest",
+    "AGG": 60,
+    "TEA": 50,
+    "INS": 90,
+    "VOC": 20,
+    "SPE": 30
+  },
+  {
+    "id": 14,
+    "name": "GeT_RiGhT",
+    "AGG": 25,
+    "TEA": 70,
+    "INS": 40,
+    "VOC": 40,
+    "SPE": 30
+  },
+  {
+    "id": 15,
+    "name": "flameZ",
+    "AGG": 85,
+    "TEA": 55,
+    "INS": 75,
+    "VOC": 65,
+    "SPE": 20
+  },
+  {
+    "id": 16,
+    "name": "frozen",
+    "AGG": 35,
+    "TEA": 65,
+    "INS": 40,
+    "VOC": 40,
+    "SPE": 25
+  },
+  {
+    "id": 17,
+    "name": "KSCERATO",
+    "AGG": 20,
+    "TEA": 60,
+    "INS": 25,
+    "VOC": 30,
+    "SPE": 20
+  },
+  {
+    "id": 18,
+    "name": "Spinx",
+    "AGG": 40,
+    "TEA": 50,
+    "INS": 65,
+    "VOC": 45,
+    "SPE": 30
+  },
+  {
+    "id": 19,
+    "name": "Twistzz",
+    "AGG": 55,
+    "TEA": 65,
+    "INS": 30,
+    "VOC": 50,
+    "SPE": 25
+  },
+  {
+    "id": 20,
+    "name": "mezii",
+    "AGG": 40,
+    "TEA": 80,
+    "INS": 40,
+    "VOC": 35,
+    "SPE": 40
+  },
+  {
+    "id": 21,
+    "name": "Senzu",
+    "AGG": 90,
+    "TEA": 40,
+    "INS": 80,
+    "VOC": 60,
+    "SPE": 15
+  },
+  {
+    "id": 22,
+    "name": "XANTARES",
+    "AGG": 100,
+    "TEA": 35,
+    "INS": 85,
+    "VOC": 70,
+    "SPE": 10
+  },
+  {
+    "id": 23,
+    "name": "YEKINDAR",
+    "AGG": 95,
+    "TEA": 50,
+    "INS": 75,
+    "VOC": 80,
+    "SPE": 15
+  },
+  {
+    "id": 24,
+    "name": "xertioN",
+    "AGG": 80,
+    "TEA": 55,
+    "INS": 65,
+    "VOC": 85,
+    "SPE": 25
+  },
+  {
+    "id": 25,
+    "name": "torzsi",
+    "AGG": 45,
+    "TEA": 60,
+    "INS": 40,
+    "VOC": 50,
+    "SPE": 85
+  },
+  {
+    "id": 26,
+    "name": "iM",
+    "AGG": 80,
+    "TEA": 60,
+    "INS": 70,
+    "VOC": 60,
+    "SPE": 20
+  },
+  {
+    "id": 27,
+    "name": "b1t",
+    "AGG": 50,
+    "TEA": 70,
+    "INS": 30,
+    "VOC": 25,
+    "SPE": 20
+  },
+  {
+    "id": 28,
+    "name": "jL",
+    "AGG": 75,
+    "TEA": 50,
+    "INS": 65,
+    "VOC": 90,
+    "SPE": 25
+  },
+  {
+    "id": 29,
+    "name": "broky",
+    "AGG": 30,
+    "TEA": 55,
+    "INS": 45,
+    "VOC": 40,
+    "SPE": 80
+  },
+  {
+    "id": 30,
+    "name": "w0nderful",
+    "AGG": 40,
+    "TEA": 60,
+    "INS": 35,
+    "VOC": 30,
+    "SPE": 85
+  },
+  {
+    "id": 31,
+    "name": "malbsMd",
+    "AGG": 85,
+    "TEA": 50,
+    "INS": 70,
+    "VOC": 55,
+    "SPE": 15
+  },
+  {
+    "id": 32,
+    "name": "Jimpphat",
+    "AGG": 25,
+    "TEA": 75,
+    "INS": 15,
+    "VOC": 20,
+    "SPE": 40
+  },
+  {
+    "id": 33,
+    "name": "EliGE",
+    "AGG": 85,
+    "TEA": 45,
+    "INS": 40,
+    "VOC": 65,
+    "SPE": 15
+  },
+  {
+    "id": 34,
+    "name": "apEX",
+    "AGG": 85,
+    "TEA": 90,
+    "INS": 60,
+    "VOC": 100,
+    "SPE": 30
+  },
+  {
+    "id": 35,
+    "name": "Aleksib",
+    "AGG": 35,
+    "TEA": 85,
+    "INS": 20,
+    "VOC": 85,
+    "SPE": 40
+  },
+  {
+    "id": 36,
+    "name": "Xyp9x",
+    "AGG": 10,
+    "TEA": 95,
+    "INS": 25,
+    "VOC": 40,
+    "SPE": 50
+  },
+  {
+    "id": 37,
+    "name": "gla1ve",
+    "AGG": 60,
+    "TEA": 90,
+    "INS": 30,
+    "VOC": 90,
+    "SPE": 45
+  },
+  {
+    "id": 38,
+    "name": "Magisk",
+    "AGG": 45,
+    "TEA": 80,
+    "INS": 40,
+    "VOC": 60,
+    "SPE": 35
+  },
+  {
+    "id": 39,
+    "name": "FalleN",
+    "AGG": 55,
+    "TEA": 80,
+    "INS": 50,
+    "VOC": 85,
+    "SPE": 75
+  },
+  {
+    "id": 40,
+    "name": "pashaBiceps",
+    "AGG": 70,
+    "TEA": 60,
+    "INS": 75,
+    "VOC": 80,
+    "SPE": 50
+  },
+  {
+    "id": 41,
+    "name": "JW",
+    "AGG": 90,
+    "TEA": 40,
+    "INS": 95,
+    "VOC": 60,
+    "SPE": 75
+  },
+  {
+    "id": 42,
+    "name": "flusha",
+    "AGG": 35,
+    "TEA": 75,
+    "INS": 30,
+    "VOC": 30,
+    "SPE": 40
+  },
+  {
+    "id": 43,
+    "name": "olofmeister",
+    "AGG": 75,
+    "TEA": 60,
+    "INS": 60,
+    "VOC": 60,
+    "SPE": 20
+  },
+  {
+    "id": 44,
+    "name": "KRIMZ",
+    "AGG": 25,
+    "TEA": 80,
+    "INS": 30,
+    "VOC": 35,
+    "SPE": 45
+  },
+  {
+    "id": 45,
+    "name": "Snax",
+    "AGG": 40,
+    "TEA": 60,
+    "INS": 85,
+    "VOC": 50,
+    "SPE": 40
+  },
+  {
+    "id": 46,
+    "name": "byali",
+    "AGG": 85,
+    "TEA": 50,
+    "INS": 80,
+    "VOC": 40,
+    "SPE": 15
+  },
+  {
+    "id": 47,
+    "name": "NEO",
+    "AGG": 50,
+    "TEA": 75,
+    "INS": 50,
+    "VOC": 70,
+    "SPE": 30
+  },
+  {
+    "id": 48,
+    "name": "TaZ",
+    "AGG": 40,
+    "TEA": 85,
+    "INS": 40,
+    "VOC": 90,
+    "SPE": 35
+  },
+  {
+    "id": 49,
+    "name": "rain",
+    "AGG": 85,
+    "TEA": 70,
+    "INS": 50,
+    "VOC": 30,
+    "SPE": 15
+  },
+  {
+    "id": 50,
+    "name": "GuardiaN",
+    "AGG": 30,
+    "TEA": 50,
+    "INS": 60,
+    "VOC": 40,
+    "SPE": 95
+  },
+  {
+    "id": 51,
+    "name": "NBK-",
+    "AGG": 45,
+    "TEA": 85,
+    "INS": 50,
+    "VOC": 65,
+    "SPE": 35
+  },
+  {
+    "id": 52,
+    "name": "shox",
+    "AGG": 40,
+    "TEA": 50,
+    "INS": 85,
+    "VOC": 70,
+    "SPE": 40
+  },
+  {
+    "id": 53,
+    "name": "Happy",
+    "AGG": 10,
+    "TEA": 40,
+    "INS": 60,
+    "VOC": 70,
+    "SPE": 60
+  },
+  {
+    "id": 54,
+    "name": "Kjaerbye",
+    "AGG": 80,
+    "TEA": 50,
+    "INS": 80,
+    "VOC": 50,
+    "SPE": 20
+  },
+  {
+    "id": 55,
+    "name": "AdreN",
+    "AGG": 50,
+    "TEA": 75,
+    "INS": 40,
+    "VOC": 80,
+    "SPE": 30
+  },
+  {
+    "id": 56,
+    "name": "tarik",
+    "AGG": 85,
+    "TEA": 60,
+    "INS": 80,
+    "VOC": 90,
+    "SPE": 25
+  },
+  {
+    "id": 57,
+    "name": "Jame",
+    "AGG": 5,
+    "TEA": 70,
+    "INS": 10,
+    "VOC": 70,
+    "SPE": 95
+  },
+  {
+    "id": 58,
+    "name": "cArn",
+    "AGG": 40,
+    "TEA": 90,
+    "INS": 30,
+    "VOC": 85,
+    "SPE": 40
+  },
+  {
+    "id": 59,
+    "name": "dsn",
+    "AGG": 25,
+    "TEA": 65,
+    "INS": 40,
+    "VOC": 40,
+    "SPE": 90
+  },
+  {
+    "id": 60,
+    "name": "RobbaN",
+    "AGG": 50,
+    "TEA": 80,
+    "INS": 40,
+    "VOC": 85,
+    "SPE": 35
+  },
+  {
+    "id": 61,
+    "name": "Loord",
+    "AGG": 30,
+    "TEA": 85,
+    "INS": 30,
+    "VOC": 50,
+    "SPE": 45
+  },
+  {
+    "id": 62,
+    "name": "kuben",
+    "AGG": 35,
+    "TEA": 85,
+    "INS": 30,
+    "VOC": 40,
+    "SPE": 40
+  },
+  {
+    "id": 63,
+    "name": "zonic",
+    "AGG": 80,
+    "TEA": 60,
+    "INS": 60,
+    "VOC": 70,
+    "SPE": 20
+  },
+  {
+    "id": 64,
+    "name": "walle",
+    "AGG": 40,
+    "TEA": 70,
+    "INS": 40,
+    "VOC": 75,
+    "SPE": 85
+  },
+  {
+    "id": 65,
+    "name": "Edward",
+    "AGG": 85,
+    "TEA": 55,
+    "INS": 85,
+    "VOC": 40,
+    "SPE": 20
+  },
+  {
+    "id": 66,
+    "name": "Zeus",
+    "AGG": 45,
+    "TEA": 90,
+    "INS": 30,
+    "VOC": 95,
+    "SPE": 35
+  },
+  {
+    "id": 67,
+    "name": "flamie",
+    "AGG": 35,
+    "TEA": 65,
+    "INS": 50,
+    "VOC": 30,
+    "SPE": 30
+  },
+  {
+    "id": 68,
+    "name": "electroNic",
+    "AGG": 85,
+    "TEA": 45,
+    "INS": 80,
+    "VOC": 75,
+    "SPE": 15
+  },
+  {
+    "id": 69,
+    "name": "Boombl4",
+    "AGG": 90,
+    "TEA": 70,
+    "INS": 75,
+    "VOC": 90,
+    "SPE": 25
+  },
+  {
+    "id": 70,
+    "name": "Perfecto",
+    "AGG": 15,
+    "TEA": 95,
+    "INS": 30,
+    "VOC": 35,
+    "SPE": 50
+  },
+  {
+    "id": 71,
+    "name": "Potti",
+    "AGG": 35,
+    "TEA": 60,
+    "INS": 20,
+    "VOC": 40,
+    "SPE": 25
+  },
+  {
+    "id": 72,
+    "name": "SpawN",
+    "AGG": 90,
+    "TEA": 40,
+    "INS": 90,
+    "VOC": 60,
+    "SPE": 20
+  },
+  {
+    "id": 73,
+    "name": "HeatoN",
+    "AGG": 95,
+    "TEA": 45,
+    "INS": 70,
+    "VOC": 80,
+    "SPE": 10
+  },
+  {
+    "id": 74,
+    "name": "natu",
+    "AGG": 30,
+    "TEA": 85,
+    "INS": 30,
+    "VOC": 80,
+    "SPE": 40
+  },
+  {
+    "id": 75,
+    "name": "XeqtR",
+    "AGG": 40,
+    "TEA": 80,
+    "INS": 25,
+    "VOC": 85,
+    "SPE": 35
+  },
+  {
+    "id": 76,
+    "name": "trace",
+    "AGG": 25,
+    "TEA": 65,
+    "INS": 30,
+    "VOC": 30,
+    "SPE": 25
+  },
+  {
+    "id": 77,
+    "name": "cadiaN",
+    "AGG": 55,
+    "TEA": 75,
+    "INS": 50,
+    "VOC": 100,
+    "SPE": 80
+  },
+  {
+    "id": 78,
+    "name": "d4v41",
+    "AGG": 40,
+    "TEA": 85,
+    "INS": 45,
+    "VOC": 45,
+    "SPE": 30
+  },
+  {
+    "id": 79,
+    "name": "molodoy",
+    "AGG": 80,
+    "TEA": 50,
+    "INS": 85,
+    "VOC": 55,
+    "SPE": 20
+  },
+  {
+    "id": 80,
+    "name": "smooya",
+    "AGG": 85,
+    "TEA": 35,
+    "INS": 70,
+    "VOC": 95,
+    "SPE": 85
+  },
+  {
+    "id": 81,
+    "name": "try",
+    "AGG": 20,
+    "TEA": 60,
+    "INS": 35,
+    "VOC": 30,
+    "SPE": 90
+  },
+  {
+    "id": 82,
+    "name": "gr1ks",
+    "AGG": 50,
+    "TEA": 55,
+    "INS": 25,
+    "VOC": 40,
+    "SPE": 25
+  },
+  {
+    "id": 83,
+    "name": "SENSEi",
+    "AGG": 15,
+    "TEA": 60,
+    "INS": 20,
+    "VOC": 30,
+    "SPE": 95
+  },
+  {
+    "id": 84,
+    "name": "blameF",
+    "AGG": 10,
+    "TEA": 30,
+    "INS": 15,
+    "VOC": 70,
+    "SPE": 35
+  },
+  {
+    "id": 85,
+    "name": "DANK1NG",
+    "AGG": 90,
+    "TEA": 35,
+    "INS": 85,
+    "VOC": 85,
+    "SPE": 85
+  },
+  {
+    "id": 86,
+    "name": "cosmeeeN",
+    "AGG": 80,
+    "TEA": 45,
+    "INS": 70,
+    "VOC": 50,
+    "SPE": 20
+  },
+  {
+    "id": 87,
+    "name": "degster",
+    "AGG": 85,
+    "TEA": 40,
+    "INS": 75,
+    "VOC": 90,
+    "SPE": 90
+  },
+  {
+    "id": 88,
+    "name": "sterling",
+    "AGG": 25,
+    "TEA": 60,
+    "INS": 40,
+    "VOC": 40,
+    "SPE": 90
+  },
+  {
+    "id": 89,
+    "name": "woxic",
+    "AGG": 85,
+    "TEA": 45,
+    "INS": 95,
+    "VOC": 75,
+    "SPE": 90
+  },
+  {
+    "id": 90,
+    "name": "huNter-",
+    "AGG": 60,
+    "TEA": 55,
+    "INS": 35,
+    "VOC": 50,
+    "SPE": 20
+  },
+  {
+    "id": 91,
+    "name": "magixx",
+    "AGG": 20,
+    "TEA": 85,
+    "INS": 30,
+    "VOC": 20,
+    "SPE": 50
+  },
+  {
+    "id": 92,
+    "name": "TenZ",
+    "AGG": 85,
+    "TEA": 30,
+    "INS": 90,
+    "VOC": 40,
+    "SPE": 15
+  },
+  {
+    "id": 93,
+    "name": "Stewie2K",
+    "AGG": 95,
+    "TEA": 50,
+    "INS": 95,
+    "VOC": 85,
+    "SPE": 40
+  },
+  {
+    "id": 94,
+    "name": "Hiko",
+    "AGG": 15,
+    "TEA": 60,
+    "INS": 30,
+    "VOC": 50,
+    "SPE": 45
+  },
+  {
+    "id": 95,
+    "name": "ScreaM",
+    "AGG": 70,
+    "TEA": 40,
+    "INS": 85,
+    "VOC": 30,
+    "SPE": 95
+  },
+  {
+    "id": 96,
+    "name": "jks",
+    "AGG": 20,
+    "TEA": 70,
+    "INS": 25,
+    "VOC": 20,
+    "SPE": 30
+  },
+  {
+    "id": 97,
+    "name": "friberg",
+    "AGG": 90,
+    "TEA": 80,
+    "INS": 50,
+    "VOC": 70,
+    "SPE": 30
+  },
+  {
+    "id": 98,
+    "name": "fnx",
+    "AGG": 35,
+    "TEA": 65,
+    "INS": 75,
+    "VOC": 40,
+    "SPE": 35
+  },
+  {
+    "id": 99,
+    "name": "allu",
+    "AGG": 30,
+    "TEA": 60,
+    "INS": 20,
+    "VOC": 15,
+    "SPE": 85
+  },
+  {
+    "id": 100,
+    "name": "deko",
+    "AGG": 15,
+    "TEA": 55,
+    "INS": 25,
+    "VOC": 10,
+    "SPE": 95
+  }
+]

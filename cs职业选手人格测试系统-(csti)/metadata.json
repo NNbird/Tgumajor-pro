@@ -1,0 +1,5 @@
+{
+  "name": "CS职业选手人格测试系统 (CSTI)",
+  "description": "基于心理测量学的职业选手游戏人格匹配系统，通过50道战术情境题匹配最相似的CS职业选手。",
+  "requestFramePermissions": []
+}
